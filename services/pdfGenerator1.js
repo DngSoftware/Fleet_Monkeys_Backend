@@ -1,221 +1,143 @@
-const puppeteer = require('puppeteer-core');
-const fs = require('fs').promises;
-const path = require('path');
+const PDFDocument = require('pdfkit');
 const sanitizeHtml = require('sanitize-html');
 
-// Set cache directory (use /tmp/puppeteer_cache on AWS, comment out local path)
-process.env.PUPPETEER_CACHE_DIR = path.join(__dirname, 'puppeteer_cache'); // Local Windows
-// process.env.PUPPETEER_CACHE_DIR = '/tmp/puppeteer_cache'; // Uncomment for AWS
+function generateSalesQuotationPDF(quotationDetails, parcels) {
+    return new Promise((resolve, reject) => {
+        try {
+            const doc = new PDFDocument({ margin: 40, size: 'A4' });
+            const buffers = [];
+            doc.on('data', buffers.push.bind(buffers));
+            doc.on('end', () => resolve(Buffer.concat(buffers)));
+            doc.on('error', reject);
 
-// Helper function to generate HTML content
-function generatePDFHtml(type, rfqDetails, parcels, supplierDetails, quotationDetails, quotationParcels) {
-  // Determine document type (RFQ or Sales Quotation)
-  const isRFQ = type === 'RFQ';
-  const title = isRFQ ? 'Purchase RFQ' : 'Sales Quotation';
-  const recipientLabel = isRFQ ? 'To Supplier' : 'To Customer';
-  const recipientName = isRFQ ? supplierDetails.SupplierName : quotationDetails.CustomerName;
-  const recipientAddress = isRFQ
-    ? `${supplierDetails.AddressTitle || ''}\n${supplierDetails.City || ''}\nBotswana`
-    : `${quotationDetails.CustomerName || ''}\n${quotationDetails.City || ''}\nBotswana`;
-  const seriesLabel = isRFQ ? 'Purchase RFQ Series' : 'Sales Quotation Series';
-  const seriesValue = isRFQ ? rfqDetails.Series : quotationDetails.Series;
-  const footerText = isRFQ
-    ? 'Please review and submit your quotation at your earliest convenience.'
-    : 'Please review and confirm acceptance of this sales quotation.';
+            // Fonts
+            doc.registerFont('Regular', 'Helvetica');
+            doc.registerFont('Bold', 'Helvetica-Bold');
 
-  // Merge parcels for RFQ (if applicable)
-  const mergedParcels = isRFQ
-    ? parcels.map(p => {
-        const matchingQuotation = quotationParcels.find(qp => qp.ItemID === p.ItemID);
-        return {
-          ...p,
-          Rate: matchingQuotation ? matchingQuotation.Rate : '',
-          Amount: matchingQuotation ? matchingQuotation.Amount : '',
-          CountryOfOrigin: matchingQuotation ? matchingQuotation.CountryOfOriginID : '',
-        };
-      })
-    : parcels;
+            // Colors
+            const colors = {
+                header: '#003087',
+                text: '#000000',
+                rowEven: '#F5F5F5',
+                rowOdd: '#FFFFFF',
+                border: '#000000',
+                footer: '#003087',
+            };
 
-  // Sanitize inputs to prevent XSS
-  const sanitizedData = {
-    series: sanitizeHtml(seriesValue || 'N/A'),
-    requiredByDate: sanitizeHtml((isRFQ ? rfqDetails.RequiredByDate : quotationDetails.RequiredByDate) || 'N/A'),
-    companyName: sanitizeHtml((isRFQ ? rfqDetails.CompanyName : quotationDetails.CompanyName) || 'N/A'),
-    recipientName: sanitizeHtml(recipientName || 'N/A'),
-    recipientAddress: sanitizeHtml(recipientAddress),
-    companyAddress: sanitizeHtml(`${(isRFQ ? rfqDetails.CompanyName : quotationDetails.CompanyName) || ''}\n${(isRFQ ? rfqDetails.City : quotationDetails.City) || ''}\nBotswana`),
-    terms: sanitizeHtml((isRFQ ? rfqDetails.Terms : quotationDetails.Terms) || 'N/A'),
-  };
+            // Sanitize data
+            const sanitizedData = {
+                series: sanitizeHtml(quotationDetails.Series || 'N/A'),
+                requiredByDate: sanitizeHtml(quotationDetails.RequiredByDate || 'N/A'),
+                companyName: sanitizeHtml(quotationDetails.CompanyName || 'N/A'),
+                customerName: sanitizeHtml(quotationDetails.CustomerName || 'N/A'),
+                customerAddress: sanitizeHtml(
+                    [quotationDetails.CustomerName, quotationDetails.City, 'Botswana'].filter(Boolean).join(', ') || 'N/A'
+                ),
+                companyAddress: sanitizeHtml(
+                    [quotationDetails.CompanyName, quotationDetails.City, 'Botswana'].filter(Boolean).join(', ') || 'N/A'
+                ),
+                terms: sanitizeHtml(quotationDetails.Terms || 'N/A'),
+            };
 
-  // HTML template with enhanced CSS
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .section { margin-bottom: 20px; }
-        .section div { display: inline-block; width: 45%; vertical-align: top; }
-        .section div:last-child { text-align: right; }
-        .address-section { display: flex; justify-content: space-between; }
-        .address-section div { width: 45%; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        .footer { margin-top: 20px; text-align: center; }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>${title}</h1>
-        <p>Date: ${new Date().toLocaleDateString()}</p>
-      </div>
-      <div class="section">
-        <div>
-          <strong>${seriesLabel}:</strong> ${sanitizedData.series}
-        </div>
-        <div>
-          <strong>${recipientLabel}:</strong> ${sanitizedData.recipientName}
-        </div>
-      </div>
-      <div class="section">
-        <div>
-          <strong>Required By Date:</strong> ${sanitizedData.requiredByDate}
-        </div>
-        <div>
-          <strong>From Company:</strong> ${sanitizedData.companyName}
-        </div>
-      </div>
-      <div class="address-section">
-        <div>
-          <strong>${recipientLabel} Address:</strong><br>${sanitizedData.recipientAddress}
-        </div>
-        <div>
-          <strong>Company Address:</strong><br>${sanitizedData.companyAddress}
-        </div>
-      </div>
-      <div class="section">
-        <strong>Terms:</strong><br>${sanitizedData.terms}
-      </div>
-      <div class="section">
-        <h3>Items</h3>
-        <table>
-          <tr>
-            <th>Item Name</th>
-            <th>Quantity</th>
-            <th>UOM</th>
-            ${isRFQ ? '<th>Country of Origin</th>' : ''}
-            <th>Rate</th>
-            <th>Amount</th>
-          </tr>
-          ${mergedParcels
-            .map(
-              parcel => `
-                <tr>
-                  <td>${sanitizeHtml(parcel.ItemName || 'N/A')}</td>
-                  <td>${sanitizeHtml(parcel.ItemQuantity?.toString() || 'N/A')}</td>
-                  <td>${sanitizeHtml(parcel.UOMName || 'N/A')}</td>
-                  ${isRFQ ? `<td>${sanitizeHtml(parcel.CountryOfOrigin || '')}</td>` : ''}
-                  <td>${sanitizeHtml(parcel.Rate?.toString() || 'N/A')}</td>
-                  <td>${sanitizeHtml(parcel.Amount?.toString() || 'N/A')}</td>
-                </tr>
-              `
-            )
-            .join('')}
-        </table>
-      </div>
-      <div class="footer">
-        <p>${footerText}</p>
-        <p>Contact: Fleet Monkey Team | Email: support@fleetmonkey.com</p>
-      </div>
-    </body>
-    </html>
-  `;
+            console.log('Sanitized data for Sales Quotation PDF:', sanitizedData);
+            console.log('Parcels:', parcels);
 
-  return htmlContent;
+            // Header: Logo (simulated) and Title
+            doc.fillColor(colors.header).font('Bold').fontSize(24).text('Fleet Monkey', 40, 30);
+            doc.fillColor(colors.text).fontSize(18).text('Sales Quotation', 40, 60, { align: 'center' });
+            doc.font('Regular').fontSize(10).text(`Date: ${new Date().toLocaleDateString()}`, 40, 80, { align: 'right' });
+            doc.rect(40, 90, doc.page.width - 80, 2).fill(colors.header);
+            doc.moveDown(1.5);
+
+            // Quotation Details
+            doc.fillColor(colors.text).font('Bold').fontSize(12).text('Quotation Details', 40);
+            doc.font('Regular').fontSize(10)
+               .text(`Sales Quotation Series: ${sanitizedData.series}`, 40)
+               .text(`Required By Date: ${sanitizedData.requiredByDate}`);
+            doc.moveDown(1);
+
+            // Customer and Company Info (Two Columns)
+            const colWidth = (doc.page.width - 80) / 2;
+            const startY = doc.y;
+            doc.font('Bold').fontSize(12).text('To Customer', 40, startY);
+            doc.font('Regular').fontSize(10).text(sanitizedData.customerName, 40, doc.y);
+            doc.text(sanitizedData.customerAddress, 40, doc.y, { width: colWidth - 10 });
+            doc.font('Bold').fontSize(12).text('From Company', 40 + colWidth, startY);
+            doc.font('Regular').fontSize(10).text(sanitizedData.companyName, 40 + colWidth, doc.y);
+            doc.text(sanitizedData.companyAddress, 40 + colWidth, doc.y, { width: colWidth - 10 });
+            doc.moveDown(1);
+            doc.rect(40, doc.y, doc.page.width - 80, 1).fill(colors.header);
+            doc.moveDown(1);
+
+            // Terms
+            doc.font('Bold').fontSize(12).text('Terms');
+            doc.font('Regular').fontSize(10).text(sanitizedData.terms, 40, doc.y, { paragraphGap: 5 });
+            doc.moveDown(1);
+            doc.rect(40, doc.y, doc.page.width - 80, 1).fill(colors.header);
+            doc.moveDown(1);
+
+            // Items Table
+            doc.font('Bold').fontSize(12).text('Items');
+            doc.moveDown(0.5);
+
+            // Table Setup
+            const table = {
+                x: 40,
+                y: doc.y,
+                colWidths: [200, 60, 60, 60, 60],
+                headers: ['Item Name', 'Quantity', 'UOM', 'Rate', 'Amount'],
+                rowHeight: 25,
+                padding: 8,
+            };
+
+            // Draw Table Header
+            doc.fillColor(colors.text).font('Bold').fontSize(10);
+            doc.rect(table.x, table.y - 5, table.colWidths.reduce((a, b) => a + b, 0), table.rowHeight).fill(colors.header);
+            let currentX = table.x;
+            table.headers.forEach((header, i) => {
+                doc.fillColor(colors.text)
+                   .text(header, currentX + table.padding, table.y, {
+                       width: table.colWidths[i] - 2 * table.padding,
+                       align: i > 0 ? 'right' : 'left'
+                   });
+                currentX += table.colWidths[i];
+            });
+            doc.lineWidth(1).rect(table.x, table.y - 5, table.colWidths.reduce((a, b) => a + b, 0), table.rowHeight).stroke(colors.border);
+            table.y += table.rowHeight;
+
+            // Draw Table Rows
+            doc.font('Regular').fontSize(10);
+            parcels.forEach((parcel, index) => {
+                const fillColor = index % 2 === 0 ? colors.rowEven : colors.rowOdd;
+                doc.fillColor(fillColor).rect(table.x, table.y - 5, table.colWidths.reduce((a, b) => a + b, 0), table.rowHeight).fill();
+                currentX = table.x;
+                [parcel.ItemName, parcel.ItemQuantity?.toString(), parcel.UOMName, parcel.Rate?.toString(), parcel.Amount?.toString()].forEach((cell, i) => {
+                    doc.fillColor(colors.text)
+                       .text(cell || 'N/A', currentX + table.padding, table.y, {
+                           width: table.colWidths[i] - 2 * table.padding,
+                           align: i > 0 ? 'right' : 'left'
+                       });
+                    currentX += table.colWidths[i];
+                });
+                doc.lineWidth(0.5).rect(table.x, table.y - 5, table.colWidths.reduce((a, b) => a + b, 0), table.rowHeight).stroke(colors.border);
+                table.y += table.rowHeight;
+            });
+
+            // Footer
+            const footerY = doc.page.height - 80;
+            doc.rect(40, footerY - 10, doc.page.width - 80, 2).fill(colors.footer);
+            doc.fillColor(colors.text)
+               .font('Regular')
+               .fontSize(10)
+               .text('Please review and confirm acceptance of this sales quotation.', 40, footerY, { align: 'center' });
+            doc.text('Contact: Fleet Monkey Team | Email: support@fleetmonkey.com', 40, doc.y, { align: 'center' });
+
+            doc.end();
+        } catch (error) {
+            console.error(`Error generating Sales Quotation PDF: ${error.message}`);
+            reject(new Error(`Error generating Sales Quotation PDF: ${error.message}`));
+        }
+    });
 }
 
-async function generateRFQPDF(rfqDetails, parcels, supplierDetails, quotationDetails, quotationParcels, outputPath) {
-  try {
-    // Ensure the output directory exists
-    await fs.mkdir(path.dirname(outputPath), { recursive: true });
-
-    // Generate HTML content for RFQ
-    const htmlContent = generatePDFHtml('RFQ', rfqDetails, parcels, supplierDetails, quotationDetails, quotationParcels);
-
-    // Launch Puppeteer
-    console.log('Starting Puppeteer with Chromium at C:\\chrome-win\\chrome.exe (local) or /usr/bin/chromium-browser (AWS)');
-    const browser = await puppeteer.launch({
-      executablePath: process.platform === 'win32' ? 'C:\\chrome-win\\chrome.exe' : '/usr/bin/chromium-browser', // Local Windows or AWS
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    console.log('Puppeteer started');
-
-    const page = await browser.newPage();
-
-    // Set HTML content
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-
-    // Generate PDF
-    await page.pdf({
-      path: outputPath,
-      format: 'A4',
-      margin: { top: '40px', right: '40px', bottom: '40px', left: '40px' },
-      printBackground: true,
-    });
-
-    // Close browser
-    await browser.close();
-
-    console.log(`RFQ PDF created at: ${outputPath}`);
-    return outputPath;
-  } catch (error) {
-    console.error(`Error creating RFQ PDF: ${error.message}`);
-    throw new Error(`Failed to generate RFQ PDF: ${error.message}`);
-  }
-}
-
-async function generateSalesQuotationPDF(quotationDetails, parcels, outputPath) {
-  try {
-    // Ensure the output directory exists
-    await fs.mkdir(path.dirname(outputPath), { recursive: true });
-
-    // Generate HTML content for Sales Quotation
-    const htmlContent = generatePDFHtml('SalesQuotation', null, parcels, null, quotationDetails, []);
-
-    // Launch Puppeteer
-    console.log('Starting Puppeteer with Chromium at C:\\chrome-win\\chrome.exe (local) or /usr/bin/chromium-browser (AWS)');
-    const browser = await puppeteer.launch({
-      executablePath: process.platform === 'win32' ? 'C:\\chrome-win\\chrome.exe' : '/usr/bin/chromium-browser', // Local Windows or AWS
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    console.log('Puppeteer started');
-
-    const page = await browser.newPage();
-
-    // Set HTML content
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-
-    // Generate PDF
-    await page.pdf({
-      path: outputPath,
-      format: 'A4',
-      margin: { top: '40px', right: '40px', bottom: '40px', left: '40px' },
-      printBackground: true,
-    });
-
-    // Close browser
-    await browser.close();
-
-    console.log(`Sales Quotation PDF created at: ${outputPath}`);
-    return outputPath;
-  } catch (error) {
-    console.error(`Error creating Sales Quotation PDF: ${error.message}`);
-    throw new Error(`Failed to generate Sales Quotation PDF: ${error.message}`);
-  }
-}
-
-module.exports = { generateRFQPDF, generateSalesQuotationPDF };
+module.exports = { generateSalesQuotationPDF };

@@ -1,8 +1,6 @@
 const { getPurchaseOrderDetails } = require('../models/sendPurchaseOrderModel');
 const { generatePurchaseOrderPDF } = require('../services/pdfGeneratorPO');
-const { sendRFQEmail } = require('../utils/emailSender');
-const fs = require('fs').promises;
-const path = require('path');
+const { sendDocumentEmail } = require('../utils/emailSender');
 
 async function sendPurchaseOrder(req, res) {
   const { poId } = req.body;
@@ -32,18 +30,19 @@ async function sendPurchaseOrder(req, res) {
       });
     }
 
-    // Generate PDF
-    const pdfPath = path.join(__dirname, '..', 'temp', `PurchaseOrder_${poId}.pdf`);
-    console.log(`Generating PDF: ${pdfPath}`);
-    await generatePurchaseOrderPDF(poDetails, parcels, pdfPath);
+    // Generate PDF buffer
+    console.log(`Generating PDF for POID=${poId}`);
+    const pdfBuffer = await generatePurchaseOrderPDF(poDetails, parcels);
 
     // Send email with PDF
     console.log(`Sending email to ${poDetails.SupplierEmail} for Purchase Order ${poDetails.Series}`);
-    const emailResult = await sendRFQEmail(poDetails.SupplierEmail, poDetails.Series, pdfPath);
+    const emailResult = await sendDocumentEmail(
+      poDetails.SupplierEmail,
+      poDetails.Series,
+      pdfBuffer,
+      'PurchaseOrder'
+    );
     console.log(`Email result for POID=${poId}:`, emailResult);
-
-    // Clean up PDF file
-    await fs.unlink(pdfPath).catch(err => console.warn(`Failed to delete PDF for POID=${poId}: ${err.message}`));
 
     return res.status(200).json({
       success: true,

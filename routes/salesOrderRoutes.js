@@ -6,19 +6,19 @@ const tableAccessMiddleware = require('../middleware/tableAccessMiddleware');
 const permissionMiddleware = require('../middleware/permissionMiddleware');
 
 // Get a single sales order by ID
-router.get('/:id',  SalesOrderController.getSalesOrderById);
+router.get('/:id', authMiddleware, tableAccessMiddleware, permissionMiddleware('read'), SalesOrderController.getSalesOrderById);
 
 // Get all sales orders (paginated)
-router.get('/', SalesOrderController.getAllSalesOrders);
+router.get('/',authMiddleware, tableAccessMiddleware, permissionMiddleware('read'), SalesOrderController.getAllSalesOrders);
 
 // Create a new sales order
-router.post('/', authMiddleware, SalesOrderController.createSalesOrder);
+router.post('/',authMiddleware, tableAccessMiddleware, permissionMiddleware('write'), SalesOrderController.createSalesOrder);
 
 // Update a sales order
-router.put('/:id', authMiddleware, SalesOrderController.updateSalesOrder);
+router.put('/:id',authMiddleware, tableAccessMiddleware, permissionMiddleware('update'), SalesOrderController.updateSalesOrder);
 
 // Delete a sales order
-router.delete('/:id', authMiddleware, SalesOrderController.deleteSalesOrder);
+router.delete('/:id', authMiddleware, tableAccessMiddleware, permissionMiddleware('delete'), SalesOrderController.deleteSalesOrder);
 
 router.post('/approve', authMiddleware, SalesOrderController.approveSalesOrder);
 
