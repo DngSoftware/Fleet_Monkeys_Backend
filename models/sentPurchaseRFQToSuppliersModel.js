@@ -236,9 +236,45 @@ async function getSupplierQuotationDetails(supplierQuotationID, supplierID) {
   }
 }
 
+async function logPurchaseRFQToSupplier(purchaseRFQID, supplierID, createdByID) {
+  const pool = await poolPromise;
+  const connection = await pool.getConnection();
+  try {
+    // Validate inputs
+    if (!purchaseRFQID || isNaN(purchaseRFQID)) {
+      throw new Error('Invalid PurchaseRFQID provided');
+    }
+    if (!supplierID || isNaN(supplierID)) {
+      throw new Error('Invalid SupplierID-provided');
+    }
+    if (!createdByID || isNaN(createdByID)) {
+      throw new Error('Invalid CreatedByID provided');
+    }
+
+    const result = await retryOperation(async () => {
+      const [result] = await connection.query(
+        `INSERT INTO dbo_tblpurchaserfqtosupplier (PurchaseRFQID, SendToSupplierID, DateTimeSend, QuotationReceivedYN, CreatedByID, IsDeleted)
+         VALUES (?, ?, NOW(), 0, ?, 0)`,
+        [purchaseRFQID, supplierID, createdByID]
+      );
+
+      console.log(`Logged RFQ to supplier for PurchaseRFQID=${purchaseRFQID}, SupplierID=${supplierID}, CreatedByID=${createdByID}`);
+      return result.insertId;
+    });
+
+    return result;
+  } catch (error) {
+    console.error(`Error in logPurchaseRFQToSupplier for PurchaseRFQID=${purchaseRFQID}, SupplierID=${supplierID}:`, error.message, error.stack);
+    throw new Error(`Error logging RFQ to supplier: ${error.message}`);
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   getPurchaseRFQDetails,
   getSupplierDetails,
   createSupplierQuotation,
   getSupplierQuotationDetails,
+  logPurchaseRFQToSupplier,
 };

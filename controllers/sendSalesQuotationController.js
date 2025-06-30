@@ -1,8 +1,6 @@
 const { getSalesQuotationDetails } = require('../models/sendSalesQuotationModel');
 const { generateSalesQuotationPDF } = require('../services/pdfGenerator1');
 const { sendRFQEmail } = require('../utils/emailSender');
-const fs = require('fs').promises;
-const path = require('path');
 
 async function sendSalesQuotation(req, res) {
   const { salesQuotationID } = req.body;
@@ -32,18 +30,14 @@ async function sendSalesQuotation(req, res) {
       });
     }
 
-    // Generate PDF
-    const pdfPath = path.join(__dirname, '..', 'temp', `SalesQuotation_${salesQuotationID}.pdf`);
-    console.log(`Generating PDF: ${pdfPath}`);
-    await generateSalesQuotationPDF(quotationDetails, parcels, pdfPath);
+    // Generate PDF buffer
+    console.log(`Generating PDF for SalesQuotationID=${salesQuotationID}`);
+    const pdfBuffer = await generateSalesQuotationPDF(quotationDetails, parcels);
 
     // Send email with PDF
     console.log(`Sending email to ${quotationDetails.CustomerEmail} for Sales Quotation ${quotationDetails.Series}`);
-    const emailResult = await sendRFQEmail(quotationDetails.CustomerEmail, quotationDetails.Series, pdfPath);
+    const emailResult = await sendRFQEmail(quotationDetails.CustomerEmail, quotationDetails.Series, pdfBuffer);
     console.log(`Email result for SalesQuotationID=${salesQuotationID}:`, emailResult);
-
-    // Clean up PDF file
-    await fs.unlink(pdfPath).catch(err => console.warn(`Failed to delete PDF for SalesQuotationID=${salesQuotationID}: ${err.message}`));
 
     return res.status(200).json({
       success: true,

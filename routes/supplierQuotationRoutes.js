@@ -6,19 +6,19 @@ const tableAccessMiddleware = require('../middleware/tableAccessMiddleware');
 const permissionMiddleware = require('../middleware/permissionMiddleware');
 
 // Get all Supplier Quotations
-router.get('/',  SupplierQuotationController.getAllSupplierQuotations);
+router.get('/',  authMiddleware, tableAccessMiddleware, permissionMiddleware('read'), SupplierQuotationController.getAllSupplierQuotations);
 
 // Create a new Supplier Quotation
-router.post('/', authMiddleware, SupplierQuotationController.createSupplierQuotation);
+router.post('/', authMiddleware, tableAccessMiddleware, permissionMiddleware('write'), SupplierQuotationController.createSupplierQuotation);
 
 // Get a single Supplier Quotation by ID
-router.get('/:id',  SupplierQuotationController.getSupplierQuotationById);
+router.get('/:id',authMiddleware, tableAccessMiddleware, permissionMiddleware('read'),  SupplierQuotationController.getSupplierQuotationById);
 
 // Update a Supplier Quotation
-router.put('/:id', authMiddleware, SupplierQuotationController.updateSupplierQuotation);
+router.put('/:id',authMiddleware, tableAccessMiddleware, permissionMiddleware('update'), SupplierQuotationController.updateSupplierQuotation);
 
 // Delete a Supplier Quotation
-router.delete('/:id', authMiddleware, SupplierQuotationController.deleteSupplierQuotation);
+router.delete('/:id', authMiddleware, tableAccessMiddleware, permissionMiddleware('delete'), SupplierQuotationController.deleteSupplierQuotation);
 
 // Approve a Supplier Quotation
 router.post('/approve', authMiddleware, SupplierQuotationController.approveSupplierQuotation);

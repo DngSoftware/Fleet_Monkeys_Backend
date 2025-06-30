@@ -6,13 +6,13 @@ const tableAccessMiddleware = require('../middleware/tableAccessMiddleware');
 const permissionMiddleware = require('../middleware/permissionMiddleware');
 
 // Get all Sales Invoices
-router.get('/', SalesInvoiceController.getAllSalesInvoices);
+router.get('/',authMiddleware, tableAccessMiddleware, permissionMiddleware('read'), SalesInvoiceController.getAllSalesInvoices);
 
 // Get Sales Invoice by ID
-router.get('/:id', SalesInvoiceController.getSalesInvoiceById);
+router.get('/:id',authMiddleware, tableAccessMiddleware, permissionMiddleware('read'), SalesInvoiceController.getSalesInvoiceById);
 
 // Create a Sales Invoice (protected route)
-router.post('/', authMiddleware, SalesInvoiceController.createSalesInvoice);
+router.post('/', authMiddleware, tableAccessMiddleware, permissionMiddleware('write'), SalesInvoiceController.createSalesInvoice);
 
 // Approve a Sales Invoice (protected route)
 router.post('/approve', authMiddleware, SalesInvoiceController.approveSalesInvoice);

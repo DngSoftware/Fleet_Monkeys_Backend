@@ -35,26 +35,26 @@ class CertificationModel {
 
     // Call SP_GetAllCertification
     const [results] = await pool.query(
-      'CALL SP_GetAllCertification(?, ?, ?, ?, @p_Result, @p_Message)',
+      'CALL SP_GetAllCertification(?, ?, ?, ?)',
       queryParams
     );
 
-    // Log results
-    console.log('getAllCertifications results:', JSON.stringify(results, null, 2));
+    // // Log results
+    // console.log('getAllCertifications results:', JSON.stringify(results, null, 2));
 
-    // Retrieve OUT parameters
-    const [[outParams]] = await pool.query('SELECT @p_Result AS StatusCode, @p_Message AS Message');
+    // // Retrieve OUT parameters
+    // // const [[outParams]] = await pool.query('SELECT @p_Result AS StatusCode, @p_Message AS Message');
 
-    // Log output
-    console.log('getAllCertifications output:', JSON.stringify(outParams, null, 2));
+    // // Log output
+    // console.log('getAllCertifications output:', JSON.stringify(outParams, null, 2));
 
-    if (!outParams || typeof outParams.StatusCode === 'undefined') {
-      throw new Error('Output parameters missing from SP_GetAllCertification');
-    }
+    // if (!outParams || typeof outParams.StatusCode === 'undefined') {
+    //   throw new Error('Output parameters missing from SP_GetAllCertification');
+    // }
 
-    if (outParams.StatusCode !== 1) {
-      throw new Error(outParams.Message || 'Failed to retrieve Certifications');
-    }
+    // if (outParams.StatusCode !== 1) {
+    //   throw new Error(outParams.Message || 'Failed to retrieve Certifications');
+    // }
 
     // Extract total count from the second result set
     const totalRecords = results[1]?.[0]?.TotalRecords || 0;

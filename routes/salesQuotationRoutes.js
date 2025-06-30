@@ -6,19 +6,19 @@ const tableAccessMiddleware = require('../middleware/tableAccessMiddleware');
 const permissionMiddleware = require('../middleware/permissionMiddleware');
 
 // Get all Sales Quotations
-router.get('/', SalesQuotationController.getAllSalesQuotations);
+router.get('/',authMiddleware, tableAccessMiddleware, permissionMiddleware('read'), SalesQuotationController.getAllSalesQuotations);
 
 // Create a new Sales Quotation
-router.post('/', authMiddleware, SalesQuotationController.createSalesQuotation);
+router.post('/', authMiddleware, tableAccessMiddleware, permissionMiddleware('write'), SalesQuotationController.createSalesQuotation);
 
 // Get a single Sales Quotation by ID
-router.get('/:id', SalesQuotationController.getSalesQuotationById);
+router.get('/:id',authMiddleware, tableAccessMiddleware, permissionMiddleware('read'), SalesQuotationController.getSalesQuotationById);
 
 // Update a Sales Quotation
-router.put('/:id', authMiddleware, SalesQuotationController.updateSalesQuotation);
+router.put('/:id',authMiddleware, tableAccessMiddleware, permissionMiddleware('update'), SalesQuotationController.updateSalesQuotation);
 
 // Delete a Sales Quotation
-router.delete('/:id', authMiddleware, SalesQuotationController.deleteSalesQuotation);
+router.delete('/:id', authMiddleware, tableAccessMiddleware, permissionMiddleware('delete'), SalesQuotationController.deleteSalesQuotation);
 
 // Approve a Sales Quotation
 router.post('/approve', authMiddleware, SalesQuotationController.approveSalesQuotation);
