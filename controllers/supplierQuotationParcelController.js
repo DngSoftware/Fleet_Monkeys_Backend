@@ -1,6 +1,62 @@
 const SupplierQuotationParcelModel = require('../models/supplierQuotationParcelModel');
 
 class SupplierQuotationParcelController {
+    // Get all Supplier Quotation Parcels by SupplierQuotationID
+  static async getAllSupplierQuotationParcelsBySupplierQuotationId(req, res) {
+    try {
+      const { supplierQuotationId } = req.params;
+      const { pageNumber, pageSize, fromDate, toDate } = req.query;
+      const result = await SupplierQuotationParcelModel.getAllSupplierQuotationParcelsBySupplierQuotationId({
+        supplierQuotationId: parseInt(supplierQuotationId),
+        pageNumber: parseInt(pageNumber) || 1,
+        pageSize: parseInt(pageSize) || 10,
+        fromDate: fromDate || null,
+        toDate: toDate || null
+      });
+      res.status(200).json({
+        success: true,
+        message: result.message,
+        data: result.data,
+        totalRecords: result.totalRecords
+      });
+    } catch (err) {
+      console.error('Error in getAllSupplierQuotationParcelsBySupplierQuotationId:', err);
+      res.status(500).json({
+        success: false,
+        message: `Server error: ${err.message}`,
+        data: null
+      });
+    }
+  }
+
+   // Get all Supplier Quotation Parcels by SupplierQuotationID
+  static async getAllSupplierQuotationParcels(req, res) {
+    try {
+      const { pageNumber, pageSize, fromDate, toDate } = req.query;
+      const { supplierQuotationId } = req.params;
+      const result = await SupplierQuotationParcelModel.getAllSupplierQuotationParcels({
+        pageNumber: parseInt(pageNumber) || 1,
+        pageSize: parseInt(pageSize) || 10,
+        fromDate: fromDate || null,
+        toDate: toDate || null,
+        supplierQuotationId: parseInt(supplierQuotationId) || null
+      });
+      res.status(200).json({
+        success: true,
+        message: result.message || 'Supplier Quotation Parcels retrieved successfully.',
+        data: result.data,
+        totalRecords: result.totalRecords
+      });
+    } catch (err) {
+      console.error('Error in getAllSupplierQuotationParcels:', err);
+      res.status(500).json({
+        success: false,
+        message: `Server error: ${err.message}`,
+        data: null
+      });
+    }
+  }
+
   // Get a Supplier Quotation Parcel by ID
   static async getSupplierQuotationParcelById(req, res) {
     try {
