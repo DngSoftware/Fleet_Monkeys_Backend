@@ -3,6 +3,9 @@ const router = express.Router();
 const PurchaseRFQParcelController = require('../controllers/purchaseRFQParcelController');
 const authMiddleware = require('../middleware/authMiddleware');
 
+// Get all Purchase RFQ Parcels by PurchaseRFQID
+router.get('/purchaseRFQ/:purchaseRFQId', PurchaseRFQParcelController.getAllPurchaseRFQParcelsByPurchaseRFQId);
+
 // Get a single PurchaseRFQParcel by ID
 router.get('/:id', PurchaseRFQParcelController.getPurchaseRFQParcel);
 

@@ -144,6 +144,34 @@ class PurchaseRFQParcelController {
       });
     }
   }
+
+    // Get all Purchase RFQ Parcels by PurchaseRFQID
+  static async getAllPurchaseRFQParcelsByPurchaseRFQId(req, res) {
+    try {
+      const { purchaseRFQId } = req.params;
+      const { pageNumber, pageSize, sortDirection, fromDate, toDate } = req.query;
+
+      const result = await PurchaseRFQParcelModel.getAllPurchaseRFQParcelsByPurchaseRFQId({
+        purchaseRFQId: parseInt(purchaseRFQId),
+        pageNumber: parseInt(pageNumber) || 1,
+        pageSize: parseInt(pageSize) || 10,
+        sortDirection: sortDirection || 'DESC',
+        fromDate: fromDate || null,
+        toDate: toDate || null
+      });
+
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error('Error in getAllPurchaseRFQParcelsByPurchaseRFQId:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        purchaseRFQParcelId: null,
+        newPurchaseRFQParcelId: null
+      });
+    }
+  }
 }
 
 module.exports = PurchaseRFQParcelController;

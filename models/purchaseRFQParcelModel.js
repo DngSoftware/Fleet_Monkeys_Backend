@@ -186,6 +186,72 @@ class PurchaseRFQParcelModel {
 
     return await this.#executeManageStoredProcedure('SELECT', purchaseRFQParcelData);
   }
+
+     // Get all Purchase RFQ Parcels by PurchaseRFQID
+  static async getAllPurchaseRFQParcelsByPurchaseRFQId({
+    purchaseRFQId,
+    pageNumber = 1,
+    pageSize = 10,
+    sortDirection = 'DESC',
+    fromDate = null,
+    toDate = null
+  }) {
+    try {
+      const pool = await poolPromise;
+
+      // Validate parameters
+      if (!Number.isInteger(purchaseRFQId) || purchaseRFQId <= 0) {
+        throw new Error('Invalid purchaseRFQId: must be a positive integer');
+      }
+      if (!Number.isInteger(pageNumber) || pageNumber <= 0) {
+        throw new Error('Invalid pageNumber: must be a positive integer');
+      }
+      if (!Number.isInteger(pageSize) || pageSize <= 0) {
+        throw new Error('Invalid pageSize: must be a positive integer');
+      }
+      if (sortDirection && !['ASC', 'DESC'].includes(sortDirection.toUpperCase())) {
+        throw new Error('Invalid sortDirection: must be ASC or DESC');
+      }
+
+      const queryParams = [
+        pageNumber,
+        pageSize,
+        sortDirection.toUpperCase(),
+        fromDate || null,
+        toDate || null
+      ];
+
+      const [result] = await pool.query(
+        'CALL SP_GetAllPurchaseRFQParcels(?, ?, ?, ?, ?, @o_TotalRecords, @o_Message, @o_Error)',
+        queryParams
+      );
+
+      const [[outParams]] = await pool.query(
+        'SELECT @o_TotalRecords AS totalRecords, @o_Message AS message, @o_Error AS error'
+      );
+
+      if (outParams.error === 1) {
+        throw new Error(outParams.message || 'Error in stored procedure execution');
+      }
+
+      // Filter results by PurchaseRFQID
+      const filteredData = result[0].filter(parcel => parcel.PurchaseRFQID === purchaseRFQId);
+
+      // Apply pagination to filtered results
+      const startIndex = (pageNumber - 1) * pageSize;
+      const paginatedData = filteredData.slice(startIndex, startIndex + pageSize);
+
+      return {
+        success: true,
+        message: outParams.message || 'Purchase RFQ Parcels retrieved successfully',
+        data: paginatedData,
+        totalRecords: filteredData.length
+      };
+    } catch (err) {
+      console.error('Error in getAllPurchaseRFQParcelsByPurchaseRFQId:', err);
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
 }
 
 module.exports = PurchaseRFQParcelModel;
