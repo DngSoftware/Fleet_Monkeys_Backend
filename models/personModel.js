@@ -7,15 +7,30 @@ class PersonModel {
       const pool = await poolPromise;
 
       // Validate parameters
+      if (pageNumber < 1) pageNumber = 1;
+      if (pageSize < 1 || pageSize > 100) pageSize = 10; // Cap pageSize at 100
+      let formattedFromDate = null, formattedToDate = null;
+
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        throw new Error('fromDate cannot be later than toDate');
+      }
+
       const queryParams = [
-        pageNumber > 0 ? pageNumber : 1,
-        pageSize > 0 ? pageSize : 10,
-        fromDate ? new Date(fromDate) : null,
-        toDate ? new Date(toDate) : null
+        pageNumber,
+        pageSize,
+        formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null,
+        formattedToDate ? formattedToDate.toISOString().split('T')[0] : null
       ];
 
-      // Log query parameters
-      console.log('getAllPersons params:', queryParams);
+      console.log('getAllPersons params:', JSON.stringify(queryParams, null, 2));
 
       // Call SP_GetAllPerson
       const [results] = await pool.query(
@@ -23,15 +38,19 @@ class PersonModel {
         queryParams
       );
 
-      // Log results
       console.log('getAllPersons results:', JSON.stringify(results, null, 2));
 
+      const totalRecords = results[1] && results[1][0] ?(results[1][0].TotalRecords || 0) : 0;
+
       return {
-        data: results[0] || [],
-        totalRecords: results[1] && results[1][0] ? results[1][0].TotalRecords : 0
+        data: Array.isArray(results[0]) ? results[0] : [],
+        totalRecords,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (err) {
-      console.error('getAllPersons error:', err);
+      console.error('getAllPersons error:', err.stack);
       throw new Error(`Database error: ${err.message}`);
     }
   }

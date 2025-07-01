@@ -27,7 +27,7 @@ class SalesRFQController {
         CollectFromSupplierYN: req.body.CollectFromSupplierYN != null ? Boolean(req.body.CollectFromSupplierYN) : null,
         PackagingRequiredYN: req.body.PackagingRequiredYN != null ? Boolean(req.body.PackagingRequiredYN) : null,
         FormCompletedYN: req.body.FormCompletedYN != null ? Boolean(req.body.FormCompletedYN) : null,
-        CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId
+        CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
       };
 
       const result = await SalesRFQModel.createSalesRFQ(salesRFQData);
@@ -39,7 +39,7 @@ class SalesRFQController {
         message: `Server error: ${error.message}`,
         data: null,
         salesRFQId: null,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       });
     }
   }
@@ -53,7 +53,7 @@ class SalesRFQController {
           message: 'Invalid or missing SalesRFQID',
           data: null,
           salesRFQId: null,
-          newSalesRFQId: null
+          newSalesRFQId: null,
         });
       }
 
@@ -70,10 +70,11 @@ class SalesRFQController {
         RequiredByDate: req.body.RequiredByDate,
         DateReceived: req.body.DateReceived,
         ServiceTypeID: req.body.ServiceTypeID ? parseInt(req.body.ServiceTypeID) : null,
-        OriginAddressID: req.body.OriginAddressID ? parseInt(req.body.OriginAddressID) : null,
+        OriginWarehouseAddressID: req.body.OriginWarehouseAddressID ? parseInt(req.body.OriginWarehouseAddressID) : null, // Fixed field name
         CollectionAddressID: req.body.CollectionAddressID ? parseInt(req.body.CollectionAddressID) : null,
         Status: req.body.Status,
         DestinationAddressID: req.body.DestinationAddressID ? parseInt(req.body.DestinationAddressID) : null,
+        DestinationWarehouseAddressID: req.body.DestinationWarehouseAddressID ? parseInt(req.body.DestinationWarehouseAddressID) : null,
         BillingAddressID: req.body.BillingAddressID ? parseInt(req.body.BillingAddressID) : null,
         ShippingPriorityID: req.body.ShippingPriorityID ? parseInt(req.body.ShippingPriorityID) : null,
         Terms: req.body.Terms,
@@ -81,7 +82,7 @@ class SalesRFQController {
         CollectFromSupplierYN: req.body.CollectFromSupplierYN != null ? Boolean(req.body.CollectFromSupplierYN) : null,
         PackagingRequiredYN: req.body.PackagingRequiredYN != null ? Boolean(req.body.PackagingRequiredYN) : null,
         FormCompletedYN: req.body.FormCompletedYN != null ? Boolean(req.body.FormCompletedYN) : null,
-        CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId
+        CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
       };
 
       const result = await SalesRFQModel.updateSalesRFQ(salesRFQData);
@@ -93,7 +94,7 @@ class SalesRFQController {
         message: `Server error: ${error.message}`,
         data: null,
         salesRFQId: null,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       });
     }
   }
@@ -107,13 +108,13 @@ class SalesRFQController {
           message: 'Invalid or missing SalesRFQID',
           data: null,
           salesRFQId: null,
-          newSalesRFQId: null
+          newSalesRFQId: null,
         });
       }
 
       const salesRFQData = {
         SalesRFQID: salesRFQId,
-        CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId
+        CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
       };
 
       const result = await SalesRFQModel.deleteSalesRFQ(salesRFQData);
@@ -125,7 +126,7 @@ class SalesRFQController {
         message: `Server error: ${error.message}`,
         data: null,
         salesRFQId: null,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       });
     }
   }
@@ -139,12 +140,12 @@ class SalesRFQController {
           message: 'Invalid or missing SalesRFQID',
           data: null,
           salesRFQId: null,
-          newSalesRFQId: null
+          newSalesRFQId: null,
         });
       }
 
       const salesRFQData = {
-        SalesRFQID: salesRFQId
+        SalesRFQID: salesRFQId,
       };
 
       const result = await SalesRFQModel.getSalesRFQ(salesRFQData);
@@ -156,7 +157,7 @@ class SalesRFQController {
         message: `Server error: ${error.message}`,
         data: null,
         salesRFQId: null,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       });
     }
   }
@@ -167,11 +168,39 @@ class SalesRFQController {
         PageNumber: req.query.pageNumber ? parseInt(req.query.pageNumber) : 1,
         PageSize: req.query.pageSize ? parseInt(req.query.pageSize) : 10,
         FromDate: req.query.fromDate || null,
-        ToDate: req.query.toDate || null
+        ToDate: req.query.toDate || null,
       };
 
+      // Validate pagination parameters
+      if (paginationData.PageNumber < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageNumber must be greater than 0',
+          data: null,
+          salesRFQId: null,
+          newSalesRFQId: null,
+        });
+      }
+      if (paginationData.PageSize < 1 || paginationData.PageSize > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageSize must be between 1 and 100',
+          data: null,
+          salesRFQId: null,
+          newSalesRFQId: null,
+        });
+      }
+
       const result = await SalesRFQModel.getAllSalesRFQs(paginationData);
-      return res.status(result.success ? 200 : 400).json(result);
+      return res.status(result.success ? 200 : 400).json({
+        ...result,
+        pagination: {
+          pageNumber: paginationData.PageNumber,
+          pageSize: paginationData.PageSize,
+          totalRecords: result.totalRecords || 0,
+          totalPages: Math.ceil(result.totalRecords / paginationData.PageSize),
+        },
+      });
     } catch (error) {
       console.error('Get All SalesRFQs error:', error);
       return res.status(500).json({
@@ -179,7 +208,7 @@ class SalesRFQController {
         message: `Server error: ${error.message}`,
         data: null,
         salesRFQId: null,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       });
     }
   }
@@ -195,7 +224,7 @@ class SalesRFQController {
           message: 'salesRFQID is required',
           data: null,
           salesRFQId: null,
-          newSalesRFQId: null
+          newSalesRFQId: null,
         });
       }
 
@@ -205,13 +234,13 @@ class SalesRFQController {
           message: 'Authentication required',
           data: null,
           salesRFQId: null,
-          newSalesRFQId: null
+          newSalesRFQId: null,
         });
       }
 
       const approvalData = {
         SalesRFQID: parseInt(salesRFQID),
-        ApproverID: parseInt(approverID)
+        ApproverID: parseInt(approverID),
       };
 
       const result = await SalesRFQModel.approveSalesRFQ(approvalData);
@@ -223,7 +252,7 @@ class SalesRFQController {
         message: `Server error: ${error.message}`,
         data: null,
         salesRFQId: null,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       });
     }
   }
@@ -237,7 +266,7 @@ class SalesRFQController {
           message: 'Invalid or missing SalesRFQID',
           data: null,
           salesRFQId: null,
-          newSalesRFQId: null
+          newSalesRFQId: null,
         });
       }
 
@@ -250,7 +279,7 @@ class SalesRFQController {
         message: `Server error: ${error.message}`,
         data: null,
         salesRFQId: null,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       });
     }
   }

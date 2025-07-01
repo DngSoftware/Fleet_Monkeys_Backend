@@ -4,18 +4,49 @@ class VehicleController {
   // Get all Vehicles with pagination
   static async getAllVehicles(req, res) {
     try {
-      const { pageNumber, pageSize } = req.query;
+      const { pageNumber = 1, pageSize = 10 } = req.query;
+
+      const parsedPageNumber = parseInt(pageNumber);
+      const parsedPageSize = parseInt(pageSize);
+
+      // Validate pagination parameters
+      if (parsedPageNumber < 1 || parsedPageSize < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageNumber and PageSize must be positive integers',
+          data: null,
+          totalRecords: 0,
+          pagination: null
+        });
+      }
 
       const vehicles = await VehicleModel.getAllVehicles({
-        pageNumber: parseInt(pageNumber),
-        pageSize: parseInt(pageSize)
+        pageNumber: parsedPageNumber,
+        pageSize: parsedPageSize
       });
+
+      // Calculate pagination metadata
+      const totalPages = Math.ceil(vehicles.totalRecords / parsedPageSize);
+      const hasNextPage = parsedPageNumber < totalPages;
+      const hasPreviousPage = parsedPageNumber > 1;
+
+      const pagination = {
+        currentPage: parsedPageNumber,
+        pageSize: parsedPageSize,
+        totalPages: totalPages,
+        totalRecords: vehicles.totalRecords,
+        hasNextPage: hasNextPage,
+        hasPreviousPage: hasPreviousPage,
+        nextPage: hasNextPage ? parsedPageNumber + 1 : null,
+        previousPage: hasPreviousPage ? parsedPageNumber - 1 : null
+      };
 
       return res.status(200).json({
         success: true,
         message: 'Vehicles retrieved successfully',
         data: vehicles.data,
-        totalRecords: vehicles.totalRecords
+        totalRecords: vehicles.totalRecords,
+        pagination: pagination
       });
     } catch (err) {
       console.error('getAllVehicles error:', err);
@@ -23,6 +54,8 @@ class VehicleController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
+        totalRecords: 0,
+        pagination: null,
         vehicleId: null
       });
     }

@@ -12,18 +12,27 @@ class PInvoiceModel {
       const pool = await poolPromise;
   
       // Validate parameters
-      if (!Number.isInteger(pageNumber) || pageNumber <= 0) {
-        throw new Error('Invalid pageNumber: must be a positive integer');
+      if (pageNumber < 1) pageNumber = 1;
+      if (pageSize < 1 || pageSize > 100) pageSize = 10; // Cap pageSize at 100
+      let formattedFromDate = null, formattedToDate = null;
+
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
       }
-      if (!Number.isInteger(pageSize) || pageSize <= 0) {
-        throw new Error('Invalid pageSize: must be a positive integer');
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        throw new Error('fromDate cannot be later than toDate');
       }
   
       const queryParams = [
         pageNumber,
         pageSize,
-        fromDate || null,
-        toDate || null
+        formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null, // Format as YYYY-MM-DD
+        formattedToDate ? formattedToDate.toISOString().split('T')[0] : null
       ];
   
       const [results] = await pool.query(
@@ -48,8 +57,11 @@ class PInvoiceModel {
       const totalRecords = results[1] && results[1][0] ? results[1][0].TotalRecords : 0;
   
       return {
-        data: results[0],
-        totalRecords: totalRecords
+        data: results[0] || [],
+        totalRecords,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (err) {
       const errorMessage = err.sqlState ? 
@@ -76,6 +88,8 @@ class PInvoiceModel {
         null, // p_DeliveryDate
         null, // p_DateReceived
         null, // p_Terms
+        null,
+        null,
         null, // p_PackagingRequiredYN
         null, // p_CollectFromSupplierYN
         null, // p_ExternalRefNo
@@ -87,9 +101,7 @@ class PInvoiceModel {
         null, // p_CopyTaxesFromPO
         null, // p_TaxChargesTypeID
         null, // p_TaxRate
-        null, // p_TaxTotal
-        null,
-        null
+        null // p_TaxTotal
       ];
 
       const [result] = await pool.query(
@@ -135,8 +147,8 @@ class PInvoiceModel {
         data.taxChargesTypeId || null,
         data.taxRate || null,
         data.taxTotal || null,
-        null,
-        null
+        data.originWarehouseAddressID || null, // Added
+      data.destinationWarehouseAddressID || null // Added
       ];
 
       const [result] = await pool.query(
@@ -188,11 +200,14 @@ class PInvoiceModel {
         data.copyTaxesFromPO || null,
         data.taxChargesTypeId || null,
         data.taxRate || null,
-        data.taxTotal || null
+        data.taxTotal || null,
+        data.originWarehouseAddressID || null, // Added
+        data.destinationWarehouseAddressID || null, // Added
+        null
       ];
 
       const [result] = await pool.query(
-        'CALL SP_ManagePInvoice(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_ErrorMessage)',
+        'CALL SP_ManagePInvoice(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_ErrorMessage)',
         queryParams
       );
 
@@ -239,11 +254,14 @@ class PInvoiceModel {
         null, // p_CopyTaxesFromPO
         null, // p_TaxChargesTypeID
         null, // p_TaxRate
-        null // p_TaxTotal
+        null,// p_TaxTotal
+        data.originWarehouseAddressID || null, // Added
+        data.destinationWarehouseAddressID || null, // Added
+        null
       ];
 
       const [result] = await pool.query(
-        'CALL SP_ManagePInvoice(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_ErrorMessage)',
+        'CALL SP_ManagePInvoice(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         queryParams
       );
 
@@ -508,6 +526,8 @@ class PInvoiceModel {
          )`,
         [parseInt(PInvoiceID), formID]
       );
+
+     
 
       // Prepare approval status
       const approvalStatus = requiredApprovers.map(approver => ({

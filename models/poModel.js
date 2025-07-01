@@ -190,7 +190,10 @@ class PurchaseOrderModel {
         success: outParams.result === 1,
         message: outParams.message || (outParams.result === 1 ? 'Purchase orders retrieved successfully' : 'Operation failed'),
         data: results[0] || [],
-        totalRecords: totalRecords
+        totalRecords,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (error) {
       console.error('Error in getAllPurchaseOrders:', error);
@@ -198,7 +201,10 @@ class PurchaseOrderModel {
         success: false,
         message: `Server error: ${error.message}`,
         data: [],
-        totalRecords: 0
+        totalRecords: 0,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: 0
       };
     }
   }
@@ -306,7 +312,7 @@ class PurchaseOrderModel {
       }
 
       // Record approval
-      const approvalInsertResult = await this.#insertPOApproval(connection, { POID: POID, ApproverID: approverID });
+      const approvalInsertResult = await this.#insertPOApproval(connection, { POID: POID, ApproverID: appro5proverID });
       if (!approvalInsertResult.success) {
         throw new Error(`Failed to insert approval record: ${approvalInsertResult.message}`);
       }
@@ -404,7 +410,7 @@ class PurchaseOrderModel {
     }
   }
 
-     static async getPoApprovalStatus(POID) {
+  static async getPoApprovalStatus(POID) {
     try {
       const pool = await poolPromise;
       const formName = 'Purchase Order';
@@ -470,7 +476,6 @@ class PurchaseOrderModel {
       throw new Error(`Error retrieving approval status: ${error.message}`);
     }
   }
-
 }
 
 module.exports = PurchaseOrderModel;

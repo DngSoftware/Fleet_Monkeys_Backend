@@ -3,18 +3,44 @@ const FormModel = require('../models/formModel');
 class FormController {
   static async getAllForms(req, res) {
     try {
-      const { pageNumber, pageSize } = req.query;
+      const { pageNumber, pageSize, fromDate, toDate } = req.query;
 
-      const forms = await FormModel.getAllForms({
-        pageNumber: parseInt(pageNumber),
-        pageSize: parseInt(pageSize)
+      // Validate query parameters
+      if (pageNumber && isNaN(parseInt(pageNumber))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageNumber',
+          data: null,
+          formId: null
+        });
+      }
+      if (pageSize && isNaN(parseInt(pageSize))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageSize',
+          data: null,
+          formId: null
+        });
+      }
+
+      const result = await FormModel.getAllForms({
+        pageNumber: parseInt(pageNumber) || 1,
+        pageSize: parseInt(pageSize) || 10,
+        fromDate: fromDate || null,
+        toDate: toDate || null
       });
 
       return res.status(200).json({
         success: true,
         message: 'Forms retrieved successfully',
-        data: forms.data,
-        totalRecords: forms.totalRecords
+        data: result.data,
+        pagination: {
+          totalRecords: result.totalRecords,
+          currentPage: result.currentPage,
+          pageSize: result.pageSize,
+          totalPages: result.totalPages
+        },
+        formId: null
       });
     } catch (err) {
       console.error('getAllForms error:', err);

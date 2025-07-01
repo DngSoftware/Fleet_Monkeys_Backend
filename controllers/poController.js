@@ -41,7 +41,12 @@ class PurchaseOrderController {
         success: result.success,
         message: result.message,
         data: result.data,
-        totalRecords: result.totalRecords
+        pagination: {
+          totalRecords: result.totalRecords,
+          currentPage: result.currentPage,
+          pageSize: result.pageSize,
+          totalPages: result.totalPages
+        }
       });
     } catch (err) {
       console.error('Error in getAllPurchaseOrders:', err);
@@ -49,7 +54,12 @@ class PurchaseOrderController {
         success: false,
         message: `Server error: ${err.message}`,
         data: [],
-        totalRecords: 0
+        pagination: {
+          totalRecords: 0,
+          currentPage: parseInt(pageNumber) || 1,
+          pageSize: parseInt(pageSize) || 10,
+          totalPages: 0
+        }
       });
     }
   }
@@ -127,7 +137,7 @@ class PurchaseOrderController {
     }
   }
 
-     static async getPoApprovalStatus(req, res) {
+  static async getPoApprovalStatus(req, res) {
     try {
       const POID = parseInt(req.params.id);
       if (isNaN(POID)) {

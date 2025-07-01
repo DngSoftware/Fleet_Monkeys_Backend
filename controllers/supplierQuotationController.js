@@ -5,19 +5,46 @@ class SupplierQuotationController {
   static async getAllSupplierQuotations(req, res) {
     try {
       const { pageNumber, pageSize, fromDate, toDate } = req.query;
+
+      // Validate query parameters
+      if (pageNumber && isNaN(parseInt(pageNumber))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageNumber',
+          data: null,
+          supplierQuotationId: null,
+          newSupplierQuotationId: null,
+        });
+      }
+      if (pageSize && isNaN(parseInt(pageSize))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageSize',
+          data: null,
+          supplierQuotationId: null,
+          newSupplierQuotationId: null,
+        });
+      }
+
       const result = await SupplierQuotationModel.getAllSupplierQuotations({
         pageNumber: parseInt(pageNumber) || 1,
         pageSize: parseInt(pageSize) || 10,
         fromDate,
-        toDate
+        toDate,
       });
+
       res.status(200).json({
         success: true,
         message: 'Supplier Quotation records retrieved successfully.',
         data: result.data,
-        totalRecords: result.totalRecords,
+        pagination: {
+          totalRecords: result.totalRecords,
+          currentPage: result.currentPage,
+          pageSize: result.pageSize,
+          totalPages: result.totalPages,
+        },
         supplierQuotationId: null,
-        newSupplierQuotationId: null
+        newSupplierQuotationId: null,
       });
     } catch (err) {
       console.error('Error in getAllSupplierQuotations:', err);
@@ -26,7 +53,7 @@ class SupplierQuotationController {
         message: `Server error: ${err.message}`,
         data: null,
         supplierQuotationId: null,
-        newSupplierQuotationId: null
+        newSupplierQuotationId: null,
       });
     }
   }
@@ -257,7 +284,8 @@ class SupplierQuotationController {
     }
   }
 
-    static async getSupplierQuotationApprovalStatus(req, res) {
+  // Get Supplier Quotation Approval Status
+  static async getSupplierQuotationApprovalStatus(req, res) {
     try {
       const SupplierQuotationID = parseInt(req.params.id);
       if (isNaN(SupplierQuotationID)) {
@@ -272,11 +300,11 @@ class SupplierQuotationController {
 
       const result = await SupplierQuotationModel.getSupplierQuotationApprovalStatus(SupplierQuotationID);
       return res.status(result.success ? 200 : 400).json(result);
-    } catch (error) {
-      console.error('Get SupplierQuotation Approval Status error:', error);
+    } catch (err) {
+      console.error('Get SupplierQuotation Approval Status error:', err);
       return res.status(500).json({
         success: false,
-        message: `Server error: ${error.message}`,
+        message: `Server error: ${err.message}`,
         data: null,
         SupplierQuotationID: null,
         newSupplierQuotationID: null
@@ -285,4 +313,4 @@ class SupplierQuotationController {
   }
 }
 
-module.exports = SupplierQuotationController
+module.exports = SupplierQuotationController;

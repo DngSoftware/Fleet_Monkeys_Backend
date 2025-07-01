@@ -145,7 +145,7 @@ class PurchaseRFQParcelController {
     }
   }
 
-    // Get all Purchase RFQ Parcels by PurchaseRFQID
+   // Get all Purchase RFQ Parcels by PurchaseRFQID
   static async getAllPurchaseRFQParcelsByPurchaseRFQId(req, res) {
     try {
       const { purchaseRFQId } = req.params;

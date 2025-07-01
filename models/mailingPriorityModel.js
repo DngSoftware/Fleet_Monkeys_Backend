@@ -6,11 +6,28 @@ class MailingPriorityModel {
     try {
       const pool = await poolPromise;
 
+      // Validate parameters
+      if (pageNumber < 1) pageNumber = 1;
+      if (pageSize < 1 || pageSize > 100) pageSize = 10; // Cap pageSize at 100
+      let formattedFromDate = null, formattedToDate = null;
+
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        throw new Error('fromDate cannot be later than toDate');
+      }
+
       const queryParams = [
-        pageNumber > 0 ? pageNumber : 1,
-        pageSize > 0 ? pageSize : 10,
-        fromDate ? new Date(fromDate) : null,
-        toDate ? new Date(toDate) : null
+        pageNumber,
+        pageSize,
+        formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null,
+        formattedToDate ? formattedToDate.toISOString().split('T')[0] : null
       ];
 
       console.log('getAllMailingPriorities params:', JSON.stringify(queryParams, null, 2));
@@ -41,14 +58,20 @@ class MailingPriorityModel {
         'SELECT COUNT(*) AS totalRecords FROM dbo_tblmailingpriority WHERE 1=1 ' +
         'AND ( ? IS NULL OR CreatedDateTime >= ? ) ' +
         'AND ( ? IS NULL OR CreatedDateTime <= ? )',
-        [fromDate, fromDate, toDate, toDate]
+        [formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null, 
+         formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null, 
+         formattedToDate ? formattedToDate.toISOString().split('T')[0] : null, 
+         formattedToDate ? formattedToDate.toISOString().split('T')[0] : null]
       );
 
       const totalRecords = totalResult[0]?.totalRecords || 0;
 
       return {
-        data: results[0] || [],
-        totalRecords
+        data: Array.isArray(results[0]) ? results[0] : [],
+        totalRecords,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (err) {
       console.error('getAllMailingPriorities error:', err.stack);

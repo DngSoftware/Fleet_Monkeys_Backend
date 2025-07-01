@@ -1,21 +1,36 @@
 const poolPromise = require('../config/db.config');
 
 class CustomerModel {
-  // Get paginated Customers
   static async getAllCustomers({ pageNumber = 1, pageSize = 10, fromDate = null, toDate = null }) {
     try {
       const pool = await poolPromise;
 
       // Validate parameters
+      if (pageNumber < 1) pageNumber = 1;
+      if (pageSize < 1 || pageSize > 100) pageSize = 10; // Cap pageSize at 100
+      let formattedFromDate = null, formattedToDate = null;
+
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        throw new Error('fromDate cannot be later than toDate');
+      }
+
       const queryParams = [
-        pageNumber > 0 ? pageNumber : 1,
-        pageSize > 0 ? pageSize : 10,
-        fromDate ? new Date(fromDate) : null,
-        toDate ? new Date(toDate) : null
+        pageNumber,
+        pageSize,
+        formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null,
+        formattedToDate ? formattedToDate.toISOString().split('T')[0] : null
       ];
 
       // Log query parameters
-      console.log('getAllCustomers params:', queryParams);
+      console.log('getAllCustomers params:', JSON.stringify(queryParams, null, 2));
 
       // Call SP_GetAllCustomers
       const [results] = await pool.query(
@@ -27,22 +42,28 @@ class CustomerModel {
       console.log('getAllCustomers results:', JSON.stringify(results, null, 2));
 
       // Fetch output parameters
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
-      
-      // Log output
-      console.log('getAllCustomers output:', JSON.stringify(output, null, 2));
+      const [[outParams]] = await pool.query('SELECT @p_Result AS StatusCode, @p_Message AS Message');
 
-      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
+      // Log output
+      console.log('getAllCustomers output:', JSON.stringify(outParams, null, 2));
+
+      if (!outParams || typeof outParams.StatusCode === 'undefined') {
         throw new Error('Output parameters missing from SP_GetAllCustomers');
       }
 
-      if (output[0].p_Result !== 0) {
-        throw new Error(output[0].p_Message || 'Failed to retrieve customers');
+      if (outParams.StatusCode !== 0) {
+        throw new Error(outParams.Message || 'Failed to retrieve customers');
       }
 
+      // Extract totalRecords from the second result set
+      const totalRecords = results[1]?.[0]?.TotalRecords || 0;
+
       return {
-        data: results[0] || [],
-        totalRecords: null // SP does not return total count
+        data: Array.isArray(results[0]) ? results[0] : [],
+        totalRecords,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (err) {
       console.error('getAllCustomers error:', err);
@@ -50,14 +71,13 @@ class CustomerModel {
     }
   }
 
-  // Create a new Customer
   static async createCustomer(data) {
     try {
       const pool = await poolPromise;
 
       const queryParams = [
         'INSERT',
-        null, // p_CustomerID
+        null,
         data.CustomerName,
         data.CompanyID,
         data.CustomerEmail,
@@ -72,7 +92,7 @@ class CustomerModel {
       ];
 
       // Log query parameters
-      console.log('createCustomer params:', queryParams);
+      console.log('createCustomer params:', JSON.stringify(queryParams, null, 2));
 
       // Call SP_ManageCustomer
       const [results] = await pool.query(
@@ -84,22 +104,26 @@ class CustomerModel {
       console.log('createCustomer results:', JSON.stringify(results, null, 2));
 
       // Fetch output parameters
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
+      const [[outParams]] = await pool.query('SELECT @p_Result AS StatusCode, @p_Message AS Message');
 
       // Log output
-      console.log('createCustomer output:', JSON.stringify(output, null, 2));
+      console.log('createCustomer output:', JSON.stringify(outParams, null, 2));
 
-      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
+      if (!outParams || typeof outParams.StatusCode === 'undefined') {
         throw new Error('Output parameters missing from SP_ManageCustomer');
       }
 
-      if (output[0].p_Result !== 1) {
-        throw new Error(output[0].p_Message || 'Failed to create Customer');
+      if (outParams.StatusCode !== 1) {
+        throw new Error(outParams.Message || 'Failed to create Customer');
       }
 
+      // Extract CustomerID from message if available
+      const customerIdMatch = outParams.Message.match(/ID: (\d+)/);
+      const customerId = customerIdMatch ? parseInt(customerIdMatch[1]) : null;
+
       return {
-        CustomerID: null, // SP does not return new ID explicitly
-        message: output[0].p_Message
+        customerId,
+        message: outParams.Message
       };
     } catch (err) {
       console.error('createCustomer error:', err);
@@ -107,7 +131,6 @@ class CustomerModel {
     }
   }
 
-  // Get a single Customer by ID
   static async getCustomerById(id) {
     try {
       const pool = await poolPromise;
@@ -115,21 +138,21 @@ class CustomerModel {
       const queryParams = [
         'SELECT',
         id,
-        null, // p_CustomerName
-        null, // p_CompanyID
-        null, // p_CustomerEmail
-        null, // p_ImportCode
-        null, // p_BillingCurrencyID
-        null, // p_Website
-        null, // p_CustomerNotes
-        null, // p_IsInQuickBooks
-        null, // p_QuickBookAccountID
-        null, // p_CustomerAddressID
-        null  // p_CreatedByID
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
       ];
 
       // Log query parameters
-      console.log('getCustomerById params:', queryParams);
+      console.log('getCustomerById params:', JSON.stringify(queryParams, null, 2));
 
       // Call SP_ManageCustomer
       const [results] = await pool.query(
@@ -141,27 +164,26 @@ class CustomerModel {
       console.log('getCustomerById results:', JSON.stringify(results, null, 2));
 
       // Fetch output parameters
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
+      const [[outParams]] = await pool.query('SELECT @p_Result AS StatusCode, @p_Message AS Message');
 
       // Log output
-      console.log('getCustomerById output:', JSON.stringify(output, null, 2));
+      console.log('getCustomerById output:', JSON.stringify(outParams, null, 2));
 
-      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
+      if (!outParams || typeof outParams.StatusCode === 'undefined') {
         throw new Error('Output parameters missing from SP_ManageCustomer');
       }
 
-      if (output[0].p_Result !== 1) {
-        throw new Error(output[0].p_Message || 'Customer not found');
+      if (outParams.StatusCode !== 1) {
+        throw new Error(outParams.Message || 'Customer not found');
       }
 
-      return results[0][0] || null;
+      return Array.isArray(results[0]) && results[0].length > 0 ? results[0][0] : null;
     } catch (err) {
       console.error('getCustomerById error:', err);
       throw new Error(`Database error: ${err.message}`);
     }
   }
 
-  // Update a Customer
   static async updateCustomer(id, data) {
     try {
       const pool = await poolPromise;
@@ -183,7 +205,7 @@ class CustomerModel {
       ];
 
       // Log query parameters
-      console.log('updateCustomer params:', queryParams);
+      console.log('updateCustomer params:', JSON.stringify(queryParams, null, 2));
 
       // Call SP_ManageCustomer
       const [results] = await pool.query(
@@ -195,21 +217,21 @@ class CustomerModel {
       console.log('updateCustomer results:', JSON.stringify(results, null, 2));
 
       // Fetch output parameters
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
+      const [[outParams]] = await pool.query('SELECT @p_Result AS StatusCode, @p_Message AS Message');
 
       // Log output
-      console.log('updateCustomer output:', JSON.stringify(output, null, 2));
+      console.log('updateCustomer output:', JSON.stringify(outParams, null, 2));
 
-      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
+      if (!outParams || typeof outParams.StatusCode === 'undefined') {
         throw new Error('Output parameters missing from SP_ManageCustomer');
       }
 
-      if (output[0].p_Result !== 1) {
-        throw new Error(output[0].p_Message || 'Failed to update Customer');
+      if (outParams.StatusCode !== 1) {
+        throw new Error(outParams.Message || 'Failed to update Customer');
       }
 
       return {
-        message: output[0].p_Message
+        message: outParams.Message
       };
     } catch (err) {
       console.error('updateCustomer error:', err);
@@ -217,61 +239,60 @@ class CustomerModel {
     }
   }
 
-  // Delete a Customer
   static async deleteCustomer(id, createdById) {
-  try {
-    const pool = await poolPromise;
+    try {
+      const pool = await poolPromise;
 
-    const queryParams = [
-      'DELETE',
-      id,
-      null, // p_CustomerName
-      null, // p_CompanyID
-      null, // p_CustomerEmail
-      null, // p_ImportCode
-      null, // p_BillingCurrencyID
-      null, // p_Website
-      null, // p_CustomerNotes
-      null, // p_IsInQuickBooks
-      null, // p_QuickBookAccountID
-      null, // p_CustomerAddressID
-      createdById // p_CreatedById
-    ];
+      const queryParams = [
+        'DELETE',
+        id,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        createdById
+      ];
 
-    // Log query parameters
-    console.log('deleteCustomer params:', queryParams);
+      // Log query parameters
+      console.log('deleteCustomer params:', JSON.stringify(queryParams, null, 2));
 
-    // Call SP_ManageCustomer
-    const [results] = await pool.query(
-      'CALL SP_ManageCustomer(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
-      queryParams
-    );
+      // Call SP_ManageCustomer
+      const [results] = await pool.query(
+        'CALL SP_ManageCustomer(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
+        queryParams
+      );
 
-    // Log results
-    console.log('deleteCustomer results:', JSON.stringify(results, null, 2));
+      // Log results
+      console.log('deleteCustomer results:', JSON.stringify(results, null, 2));
 
-    // Fetch output parameters
-    const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
+      // Fetch output parameters
+      const [[outParams]] = await pool.query('SELECT @p_Result AS StatusCode, @p_Message AS Message');
 
-    // Log output
-    console.log('deleteCustomer output:', JSON.stringify(output, null, 2));
+      // Log output
+      console.log('deleteCustomer output:', JSON.stringify(outParams, null, 2));
 
-    if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
-      throw new Error('Output parameters missing from SP_ManageCustomer');
+      if (!outParams || typeof outParams.StatusCode === 'undefined') {
+        throw new Error('Output parameters missing from SP_ManageCustomer');
+      }
+
+      if (outParams.StatusCode !== 1) {
+        throw new Error(outParams.Message || 'Failed to delete Customer');
+      }
+
+      return {
+        message: outParams.Message
+      };
+    } catch (err) {
+      console.error('deleteCustomer error:', err);
+      throw new Error(`Database error: ${err.message}`);
     }
-
-    if (output[0].p_Result !== 1) {
-      throw new Error(output[0].p_Message || 'Failed to delete Customer');
-    }
-
-    return {
-      message: output[0].p_Message,
-    };
-  } catch (err) {
-    console.error('deleteCustomer error:', err);
-    throw new Error(`Database error: ${err.message}`);
   }
-}
 }
 
 module.exports = CustomerModel;

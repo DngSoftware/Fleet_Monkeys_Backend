@@ -17,13 +17,39 @@ class SalesQuotationModel {
       const pool = await poolPromise;
 
       // Validate parameters
+      if (pageNumber < 1) pageNumber = 1;
+      if (pageSize < 1 || pageSize > 100) pageSize = 10; // Cap pageSize at 100
+      let formattedFromDate = null, formattedToDate = null;
+
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        throw new Error('fromDate cannot be later than toDate');
+      }
+
+      // Validate sort column to prevent SQL injection
+      const validSortColumns = [
+        'SalesQuotationID', 'CreatedDateTime', 'PostingDate', 'DeliveryDate',
+        'SalesAmount', 'Total', 'Profit', 'CustomerName', 'SupplierName', 'Status'
+      ];
+      const validatedSortColumn = validSortColumns.includes(sortColumn) ? sortColumn : 'SalesQuotationID';
+
+      // Validate sort direction
+      const validatedSortDirection = sortDirection.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+
       const queryParams = [
-        pageNumber > 0 ? pageNumber : 1,
-        pageSize > 0 ? pageSize : 10,
-        sortColumn || 'SalesQuotationID',
-        sortDirection.toUpperCase() === 'DESC' ? 'DESC' : 'ASC',
-        fromDate || null,
-        toDate || null,
+        pageNumber,
+        pageSize,
+        validatedSortColumn,
+        validatedSortDirection,
+        formattedFromDate || null,
+        formattedToDate || null,
         status || null,
         customerId ? parseInt(customerId) : null,
         supplierId ? parseInt(supplierId) : null
@@ -36,13 +62,21 @@ class SalesQuotationModel {
       );
 
       // Retrieve OUT parameter
-      const [[{ totalRecords }]] = await pool.query('SELECT @p_TotalRecords AS totalRecords');
+      const [[outParams]] = await pool.query('SELECT @p_TotalRecords AS totalRecords');
+
+      if (outParams.totalRecords === -1) {
+        throw new Error('Error retrieving Sales Quotations');
+      }
 
       return {
-        data: result[0],
-        totalRecords: totalRecords || 0
+        data: result[0] || [],
+        totalRecords: outParams.totalRecords || 0,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil((outParams.totalRecords || 0) / pageSize)
       };
     } catch (err) {
+      console.error('getAllSalesQuotations error:', err);
       throw new Error(`Database error: ${err.message}`);
     }
   }
@@ -275,7 +309,7 @@ class SalesQuotationModel {
       ];
 
       const [result] = await pool.query(
-        'CALL SP_ManageSalesQuotation(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewSalesQuotationID)',
+        'CALL SP_ManageSalesQuotation(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewSalesQuotationID)',
         queryParams
       );
 
@@ -500,7 +534,7 @@ class SalesQuotationModel {
     }
   }
 
-   static async getSalesQuotationApprovalStatus(SalesQuotationID) {
+  static async getSalesQuotationApprovalStatus(SalesQuotationID) {
     try {
       const pool = await poolPromise;
       const formName = 'Sales Quotation';

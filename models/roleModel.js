@@ -1,49 +1,71 @@
 const poolPromise = require('../config/db.config');
 
 class RoleModel {
-  // Get all Roles or a single Role by ID
-  static async getAllRoles({ roleId = null }) {
+  // Get all Roles with pagination and filtering
+  static async getAllRoles({ pageNumber = 1, pageSize = 10, fromDate = null, toDate = null, roleName = null, createdById = null }) {
     try {
       const pool = await poolPromise;
 
+      // Minimal validation (stored procedure handles most validation)
+      if (pageNumber < 1) pageNumber = 1;
+      if (pageSize < 1) pageSize = 10;
+
+      let formattedFromDate = null, formattedToDate = null;
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
+        formattedFromDate = formattedFromDate.toISOString().split('T')[0];
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+        formattedToDate = formattedToDate.toISOString().split('T')[0];
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        throw new Error('fromDate cannot be later than toDate');
+      }
+
       const queryParams = [
-        'SELECT',
-        roleId ? parseInt(roleId) : null,
-        null, // p_rolename
-        null, // p_description
-        null, // p_createdbyid
-        null  // p_deletedbyid
+        pageNumber,
+        pageSize,
+        formattedFromDate,
+        formattedToDate,
+        roleName ? roleName.trim() : null,
+        createdById ? createdById.toString().trim() : null // Convert to string for VARCHAR(128)
       ];
 
-      console.log('getRoles params:', JSON.stringify(queryParams, null, 2));
+      console.log('getAllRoles params:', JSON.stringify(queryParams, null, 2));
 
+      // Call the stored procedure
       const [results] = await pool.query(
-        'CALL SP_ManageRoles(?, ?, ?, ?, ?, ?, @p_newroleid, @p_result, @p_message)',
+        'CALL SP_GetAllRoles(?, ?, ?, ?, ?, ?, @p_TotalRecords)',
         queryParams
       );
 
-      console.log('getRoles results:', JSON.stringify(results, null, 2));
+      console.log('getAllRoles results:', JSON.stringify(results, null, 2));
 
-      const [output] = await pool.query(
-        'SELECT @p_result AS p_result, @p_message AS p_message'
-      );
+      // Fetch output parameter
+      const [output] = await pool.query('SELECT @p_TotalRecords AS p_TotalRecords');
 
-      console.log('getRoles output:', JSON.stringify(output, null, 2));
+      console.log('getAllRoles output:', JSON.stringify(output, null, 2));
 
-      if (!output || !output[0] || output[0].p_result === null) {
-        throw new Error('Invalid output from SP_ManageRoles');
+      if (!output || !output[0] || output[0].p_TotalRecords === null) {
+        throw new Error(`Invalid output from SP_GetAllRoles: ${JSON.stringify(output)}`);
       }
 
-      if (output[0].p_result !== 1 && !output[0].p_message.toLowerCase().includes('successfully')) {
-        throw new Error(output[0].p_message || 'Failed to retrieve roles');
+      if (output[0].p_TotalRecords === -1) {
+        throw new Error('Database error occurred in SP_GetAllRoles');
       }
 
       return {
         data: Array.isArray(results[0]) ? results[0] : [],
-        totalRecords: results[0].length
+        totalRecords: output[0].p_TotalRecords || 0,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil((output[0].p_TotalRecords || 0) / pageSize)
       };
     } catch (err) {
-      console.error('getRoles error:', err.stack);
+      console.error('getAllRoles error:', err.stack);
       throw new Error(`Database error: ${err.message}`);
     }
   }

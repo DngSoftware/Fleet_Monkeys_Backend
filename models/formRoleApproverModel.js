@@ -5,26 +5,37 @@ class FormRoleApproverModel {
     try {
       const pool = await poolPromise;
 
+      // Validate parameters
+      if (pageNumber < 1) pageNumber = 1;
+      if (pageSize < 1) pageSize = 10;
+      if (formRoleId && isNaN(formRoleId)) throw new Error('Invalid formRoleId');
+      if (userId && isNaN(userId)) throw new Error('Invalid userId');
+
       const queryParams = [
-        pageNumber > 0 ? pageNumber : 1,
-        pageSize > 0 ? pageSize : 10,
+        pageNumber,
+        pageSize,
         formRoleId,
         userId,
         activeOnly !== null ? (activeOnly ? 1 : 0) : null,
         createdBy
       ];
 
+      // Log query parameters
       console.log('getAllFormRoleApprovers params:', queryParams);
 
+      // Call SP_GetAllFormRoleApprovers
       const [results] = await pool.query(
         'CALL SP_GetAllFormRoleApprovers(?, ?, ?, ?, ?, ?, @p_TotalRecords)',
         queryParams
       );
 
+      // Log results
       console.log('getAllFormRoleApprovers results:', JSON.stringify(results, null, 2));
 
+      // Retrieve OUT parameter
       const [output] = await pool.query('SELECT @p_TotalRecords AS p_TotalRecords');
 
+      // Log output
       console.log('getAllFormRoleApprovers output:', JSON.stringify(output, null, 2));
 
       if (!output || !output[0] || typeof output[0].p_TotalRecords === 'undefined') {
@@ -35,9 +46,16 @@ class FormRoleApproverModel {
         throw new Error('Failed to retrieve FormRoleApprovers');
       }
 
+      // Extract paginated data and total count
+      const formRoleApprovers = results[0] || [];
+      const totalRecords = output[0].p_TotalRecords || 0;
+
       return {
-        data: results[0] || [],
-        totalRecords: output[0].p_TotalRecords
+        data: formRoleApprovers,
+        totalRecords,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (err) {
       console.error('getAllFormRoleApprovers error:', err);

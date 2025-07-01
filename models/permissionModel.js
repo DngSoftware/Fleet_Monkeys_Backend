@@ -1,18 +1,36 @@
 const poolPromise = require('../config/db.config');
 
 class PermissionModel {
-  // Get paginated Permissions
   static async getAllPermissions({ pageNumber = 1, pageSize = 10, fromDate = null, toDate = null }) {
     try {
       const pool = await poolPromise;
 
       // Validate parameters
+      if (pageNumber < 1) pageNumber = 1;
+      if (pageSize < 1) pageSize = 10;
+      let formattedFromDate = null, formattedToDate = null;
+
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        throw new Error('fromDate cannot be later than toDate');
+      }
+
       const queryParams = [
-        pageNumber > 0 ? pageNumber : 1,
-        pageSize > 0 ? pageSize : 10,
-        fromDate ? new Date(fromDate) : null,
-        toDate ? new Date(toDate) : null
+        pageNumber,
+        pageSize,
+        formattedFromDate ? formattedFromDate.toISOString() : null, // Full ISO format for DATETIME
+        formattedToDate ? formattedToDate.toISOString() : null
       ];
+
+      // Log query parameters
+      console.log('getAllPermissions params:', queryParams);
 
       // Call SP_GetAllPermissions
       const [results] = await pool.query(
@@ -20,15 +38,22 @@ class PermissionModel {
         queryParams
       );
 
+      // Log results
+      console.log('getAllPermissions results:', JSON.stringify(results, null, 2));
+
       // Extract paginated data and total count
-      const permissions = results[0];
-      const totalRecords = results[1][0].TotalRecords;
+      const permissions = results[0] || [];
+      const totalRecords = results[1]?.[0]?.TotalRecords || 0;
 
       return {
         data: permissions,
-        totalRecords
+        totalRecords,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (err) {
+      console.error('getAllPermissions error:', err);
       throw new Error(`Database error: ${err.message}`);
     }
   }

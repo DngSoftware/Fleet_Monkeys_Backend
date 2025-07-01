@@ -8,12 +8,20 @@ class WarehouseController {
       // Validate pagination parameters
       const pageNum = parseInt(pageNumber, 10);
       const pageSz = parseInt(pageSize, 10);
-      if (isNaN(pageNum) || pageNum < 1 || isNaN(pageSz) || pageSz < 1) {
+      if (isNaN(pageNum) || pageNum < 1) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid pageNumber or pageSize',
+          message: 'Invalid pageNumber',
           data: null,
-          totalRecords: 0
+          pagination: null
+        });
+      }
+      if (isNaN(pageSz) || pageSz < 1 || pageSz > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageSize (must be between 1 and 100)',
+          data: null,
+          pagination: null
         });
       }
 
@@ -23,7 +31,7 @@ class WarehouseController {
           success: false,
           message: 'Invalid fromDate format (use YYYY-MM-DD)',
           data: null,
-          totalRecords: 0
+          pagination: null
         });
       }
       if (toDate && !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
@@ -31,7 +39,7 @@ class WarehouseController {
           success: false,
           message: 'Invalid toDate format (use YYYY-MM-DD)',
           data: null,
-          totalRecords: 0
+          pagination: null
         });
       }
 
@@ -46,7 +54,12 @@ class WarehouseController {
         success: true,
         message: 'Warehouses retrieved successfully',
         data: warehouses.data || [],
-        totalRecords: warehouses.totalRecords || 0
+        pagination: {
+          totalRecords: warehouses.totalRecords,
+          currentPage: warehouses.currentPage,
+          pageSize: warehouses.pageSize,
+          totalPages: warehouses.totalPages
+        }
       });
     } catch (err) {
       console.error('getAllWarehouses error:', err.stack);
@@ -54,7 +67,7 @@ class WarehouseController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        totalRecords: 0
+        pagination: null
       });
     }
   }
@@ -69,7 +82,7 @@ class WarehouseController {
           success: false,
           message: 'Valid warehouseName is required',
           data: null,
-          warehouseId: null
+          totalRecords: 0
         });
       }
       if (!createdById || isNaN(parseInt(createdById))) {
@@ -77,7 +90,7 @@ class WarehouseController {
           success: false,
           message: 'Valid createdById is required',
           data: null,
-          warehouseId: null
+          totalRecords: 0
         });
       }
 
@@ -99,7 +112,7 @@ class WarehouseController {
         success: true,
         message: result.message || 'Warehouse created successfully',
         data: result.data || { warehouseName, createdById, warehouseAddressId },
-        warehouseId: result.warehouseId
+        totalRecords: 0
       });
     } catch (err) {
       console.error('createWarehouse error:', err.stack);
@@ -107,7 +120,7 @@ class WarehouseController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        warehouseId: null
+        totalRecords: 0
       });
     }
   }
@@ -122,7 +135,7 @@ class WarehouseController {
           success: false,
           message: 'Valid WarehouseID is required',
           data: null,
-          warehouseId: null
+          totalRecords: 0
         });
       }
 
@@ -133,7 +146,7 @@ class WarehouseController {
           success: false,
           message: 'Warehouse not found',
           data: null,
-          warehouseId
+          totalRecords: 0
         });
       }
 
@@ -141,7 +154,7 @@ class WarehouseController {
         success: true,
         message: 'Warehouse retrieved successfully',
         data: warehouse,
-        warehouseId
+        totalRecords: 1
       });
     } catch (err) {
       console.error('getWarehouseById error:', err.stack);
@@ -149,7 +162,7 @@ class WarehouseController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        warehouseId: null
+        totalRecords: 0
       });
     }
   }
@@ -165,7 +178,7 @@ class WarehouseController {
           success: false,
           message: 'Valid WarehouseID is required',
           data: null,
-          warehouseId: null
+          totalRecords: 0
         });
       }
 
@@ -174,7 +187,7 @@ class WarehouseController {
           success: false,
           message: 'Valid WarehouseName is required',
           data: null,
-          warehouseId
+          totalRecords: 0
         });
       }
       if (!warehouseAddressId || isNaN(parseInt(warehouseAddressId))) {
@@ -182,7 +195,7 @@ class WarehouseController {
           success: false,
           message: 'Valid WarehouseAddressID is required',
           data: null,
-          warehouseId
+          totalRecords: 0
         });
       }
       if (!createdById || isNaN(parseInt(createdById))) {
@@ -190,7 +203,7 @@ class WarehouseController {
           success: false,
           message: 'Valid CreatedByID is required',
           data: null,
-          warehouseId
+          totalRecords: 0
         });
       }
 
@@ -212,7 +225,7 @@ class WarehouseController {
         success: true,
         message: result.message || 'Warehouse updated successfully',
         data: null,
-        warehouseId
+        totalRecords: 0
       });
     } catch (err) {
       console.error('updateWarehouse error:', err.stack);
@@ -220,7 +233,7 @@ class WarehouseController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        warehouseId: null
+        totalRecords: 0
       });
     }
   }
@@ -236,7 +249,7 @@ class WarehouseController {
           success: false,
           message: 'Valid WarehouseID is required',
           data: null,
-          warehouseId: null
+          totalRecords: 0
         });
       }
 
@@ -245,7 +258,7 @@ class WarehouseController {
           success: false,
           message: 'Valid CreatedByID is required',
           data: null,
-          warehouseId
+          totalRecords: 0
         });
       }
 
@@ -257,7 +270,7 @@ class WarehouseController {
         success: true,
         message: result.message || 'Warehouse deleted successfully',
         data: null,
-        warehouseId
+        totalRecords: 0
       });
     } catch (err) {
       console.error('deleteWarehouse error:', err.stack);
@@ -265,7 +278,7 @@ class WarehouseController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        warehouseId: null
+        totalRecords: 0
       });
     }
   }

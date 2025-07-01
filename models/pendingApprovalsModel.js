@@ -41,9 +41,15 @@ class PendingApprovalsModel {
         queryParams
       );
 
+      // Extract total count from the second result set
+      const totalRecords = result[1]?.[0]?.TotalRecords || result[0].length;
+
       return {
         data: result[0],
-        totalRecords: result[0].length
+        totalRecords,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (err) {
       const errorMessage = err.sqlState ? 

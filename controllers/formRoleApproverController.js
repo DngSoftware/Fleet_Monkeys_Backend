@@ -5,20 +5,60 @@ class FormRoleApproverController {
     try {
       const { pageNumber, pageSize, formRoleId, userId, activeOnly, createdBy } = req.query;
 
-      const formRoleApprovers = await FormRoleApproverModel.getAllFormRoleApprovers({
-        pageNumber: parseInt(pageNumber),
-        pageSize: parseInt(pageSize),
+      // Validate query parameters
+      if (pageNumber && isNaN(parseInt(pageNumber))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageNumber',
+          data: null,
+          formRoleApproverId: null
+        });
+      }
+      if (pageSize && isNaN(parseInt(pageSize))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageSize',
+          data: null,
+          formRoleApproverId: null
+        });
+      }
+      if (formRoleId && isNaN(parseInt(formRoleId))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid formRoleId',
+          data: null,
+          formRoleApproverId: null
+        });
+      }
+      if (userId && isNaN(parseInt(userId))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid userId',
+          data: null,
+          formRoleApproverId: null
+        });
+      }
+
+      const result = await FormRoleApproverModel.getAllFormRoleApprovers({
+        pageNumber: parseInt(pageNumber) || 1,
+        pageSize: parseInt(pageSize) || 10,
         formRoleId: formRoleId ? parseInt(formRoleId) : null,
         userId: userId ? parseInt(userId) : null,
         activeOnly: activeOnly !== undefined ? Boolean(parseInt(activeOnly)) : null,
-        createdBy
+        createdBy: createdBy || null
       });
 
       return res.status(200).json({
         success: true,
         message: 'FormRoleApprovers retrieved successfully',
-        data: formRoleApprovers.data,
-        totalRecords: formRoleApprovers.totalRecords
+        data: result.data,
+        pagination: {
+          totalRecords: result.totalRecords,
+          currentPage: result.currentPage,
+          pageSize: result.pageSize,
+          totalPages: result.totalPages
+        },
+        formRoleApproverId: null
       });
     } catch (err) {
       console.error('getAllFormRoleApprovers error:', err);

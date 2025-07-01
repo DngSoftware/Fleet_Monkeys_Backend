@@ -5,18 +5,26 @@ class WarehouseModel {
     try {
       const pool = await poolPromise;
 
-      // Validate pagination parameters
-      const pageNum = parseInt(pageNumber, 10);
-      const pageSz = parseInt(pageSize, 10);
-      if (isNaN(pageNum) || pageNum < 1 || isNaN(pageSz) || pageSz < 1) {
-        throw new Error('Invalid pageNumber or pageSize');
+      // Validate date parameters
+      let formattedFromDate = null, formattedToDate = null;
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        throw new Error('fromDate cannot be later than toDate');
       }
 
-      // Validate date parameters
-      const validatedFromDate = fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate) ? fromDate : null;
-      const validatedToDate = toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate) ? toDate : null;
-
-      const queryParams = [pageNum, pageSz, validatedFromDate, validatedToDate];
+      const queryParams = [
+        pageNumber,
+        pageSize,
+        formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null,
+        formattedToDate ? formattedToDate.toISOString().split('T')[0] : null
+      ];
 
       console.log('getAllWarehouses params:', JSON.stringify(queryParams, null, 2));
 
@@ -39,9 +47,15 @@ class WarehouseModel {
         throw new Error(output[0].p_Message || 'Failed to retrieve warehouses');
       }
 
+      // Extract totalRecords from the second result set
+      const totalRecords = Array.isArray(results[1]) && results[1][0]?.TotalRecords ? results[1][0].TotalRecords : 0;
+
       return {
         data: Array.isArray(results[0]) ? results[0] : [],
-        totalRecords: Array.isArray(results[1]) && results[1][0]?.TotalRecords ? results[1][0].TotalRecords : 0
+        totalRecords,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (err) {
       console.error('getAllWarehouses error:', err.stack);
@@ -87,7 +101,6 @@ class WarehouseModel {
         throw new Error(`Invalid output from SP_ManageWarehouse: ${JSON.stringify(output)}`);
       }
 
-      // Handle case where stored procedure returns non-zero p_Result but indicates success
       if (output[0].p_Result !== 0 && output[0].p_Message.includes('successfully')) {
         console.warn('SP_ManageWarehouse returned non-zero p_Result with success message:', output[0].p_Message);
         const warehouseIdMatch = output[0].p_Message.match(/ID: (\d+)/);
@@ -101,7 +114,6 @@ class WarehouseModel {
             createdById: data.createdById
           }
         };
- //remains unchanged
       }
 
       if (output[0].p_Result !== 0) {
@@ -154,7 +166,6 @@ class WarehouseModel {
         throw new Error(`Invalid output from SP_ManageWarehouse: ${JSON.stringify(output)}`);
       }
 
-      // Handle case where stored procedure returns non-zero p_Result but indicates success
       if (output[0].p_Result !== 0 && output[0].p_Message.includes('successfully')) {
         console.warn('SP_ManageWarehouse returned non-zero p_Result with success message:', output[0].p_Message);
         return Array.isArray(results[0]) && results[0].length > 0 ? results[0][0] : null;
@@ -215,7 +226,6 @@ class WarehouseModel {
         throw new Error(`Invalid output from SP_ManageWarehouse: ${JSON.stringify(output)}`);
       }
 
-      // Handle case where stored procedure returns non-zero p_Result but indicates success
       if (output[0].p_Result !== 0 && output[0].p_Message.includes('Warehouse updated successfully')) {
         console.warn('SP_ManageWarehouse returned non-zero p_Result with success message:', output[0].p_Message);
         return {
@@ -268,7 +278,6 @@ class WarehouseModel {
         throw new Error(`Invalid output from SP_ManageWarehouse: ${JSON.stringify(output)}`);
       }
 
-      // Handle case where stored procedure returns non-zero p_Result but indicates success
       if (output[0].p_Result !== 0 && output[0].p_Message.includes('successfully')) {
         console.warn('SP_ManageWarehouse returned non-zero p_Result with success message:', output[0].p_Message);
         return {

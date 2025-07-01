@@ -30,6 +30,24 @@ class SalesOrderController {
     try {
       const { pageNumber, pageSize, sortColumn, sortDirection, fromDate, toDate } = req.query;
 
+      // Validate query parameters
+      if (pageNumber && isNaN(parseInt(pageNumber))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageNumber',
+          data: null,
+          pagination: null
+        });
+      }
+      if (pageSize && isNaN(parseInt(pageSize))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageSize',
+          data: null,
+          pagination: null
+        });
+      }
+
       const result = await SalesOrderModel.getAllSalesOrders({
         pageNumber: parseInt(pageNumber) || 1,
         pageSize: parseInt(pageSize) || 10,
@@ -39,14 +57,19 @@ class SalesOrderController {
         toDate: toDate || null
       });
 
-      return res.status(result.success ? 200 : 400).json(result);
+      return res.status(result.success ? 200 : 400).json({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+        pagination: result.pagination
+      });
     } catch (err) {
       console.error('Error in getAllSalesOrders:', err);
       return res.status(500).json({
         success: false,
         message: `Server error: ${err.message}`,
-        data: [],
-        totalRecords: 0
+        data: null,
+        pagination: null
       });
     }
   }
@@ -191,7 +214,6 @@ class SalesOrderController {
     }
   }
 
-   // Approve a Sales Quotation
   static async approveSalesOrder(req, res) {
     try {
       const { SalesOrderID } = req.body;
@@ -230,13 +252,13 @@ class SalesOrderController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-       SalesOrderID: null,
+        SalesOrderID: null,
         newSalesOrderID: null
       });
     }
   }
 
-     static async getSalesOrderApprovalStatus(req, res) {
+  static async getSalesOrderApprovalStatus(req, res) {
     try {
       const SalesOrderID = parseInt(req.params.id);
       if (isNaN(SalesOrderID)) {
@@ -251,11 +273,11 @@ class SalesOrderController {
 
       const result = await SalesOrderModel.getSalesOrderApprovalStatus(SalesOrderID);
       return res.status(result.success ? 200 : 400).json(result);
-    } catch (error) {
-      console.error('Get SalesOrder Approval Status error:', error);
+    } catch (err) {
+      console.error('Get SalesOrder Approval Status error:', err);
       return res.status(500).json({
         success: false,
-        message: `Server error: ${error.message}`,
+        message: `Server error: ${err.message}`,
         data: null,
         SalesOrderID: null,
         newSalesOrderID: null

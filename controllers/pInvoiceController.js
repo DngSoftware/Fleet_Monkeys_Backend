@@ -5,17 +5,40 @@ class PInvoiceController {
   static async getAllPInvoices(req, res) {
     try {
       const { pageNumber, pageSize, fromDate, toDate } = req.query;
+
+      // Validate query parameters
+      if (pageNumber && isNaN(parseInt(pageNumber))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageNumber',
+          data: null
+        });
+      }
+      if (pageSize && isNaN(parseInt(pageSize))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageSize',
+          data: null
+        });
+      }
+
       const result = await PInvoiceModel.getAllPInvoices({
         pageNumber: parseInt(pageNumber) || 1,
         pageSize: parseInt(pageSize) || 10,
         fromDate: fromDate || null,
         toDate: toDate || null
       });
+
       res.status(200).json({
         success: true,
         message: 'Purchase Invoices retrieved successfully.',
         data: result.data,
-        totalRecords: result.totalRecords
+        pagination: {
+          totalRecords: result.totalRecords,
+          currentPage: result.currentPage,
+          pageSize: result.pageSize,
+          totalPages: result.totalPages
+        }
       });
     } catch (err) {
       console.error('Error in getAllPInvoices:', err);
