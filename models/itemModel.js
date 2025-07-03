@@ -7,15 +7,30 @@ class ItemModel {
       const pool = await poolPromise;
 
       // Validate parameters
+      if (pageNumber < 1) pageNumber = 1;
+      if (pageSize < 1 || pageSize > 100) pageSize = 10; // Cap pageSize at 100
+      let formattedFromDate = null, formattedToDate = null;
+
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        throw new Error('fromDate cannot be later than toDate');
+      }
+
       const queryParams = [
-        pageNumber > 0 ? pageNumber : 1,
-        pageSize > 0 ? pageSize : 10,
-        fromDate ? new Date(fromDate) : null,
-        toDate ? new Date(toDate) : null
+        pageNumber,
+        pageSize,
+        formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null,
+        formattedToDate ? formattedToDate.toISOString().split('T')[0] : null
       ];
 
-      // Log query parameters
-      console.log('getAllItems params:', queryParams);
+      console.log('getAllItems params:', JSON.stringify(queryParams, null, 2));
 
       // Call SP_GetAllItems
       const [results] = await pool.query(
@@ -23,13 +38,11 @@ class ItemModel {
         queryParams
       );
 
-      // Log results
       console.log('getAllItems results:', JSON.stringify(results, null, 2));
 
       // Fetch output parameters
       const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
-      
-      // Log output
+
       console.log('getAllItems output:', JSON.stringify(output, null, 2));
 
       if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
@@ -40,12 +53,30 @@ class ItemModel {
         throw new Error(output[0].p_Message || 'Failed to retrieve items');
       }
 
+      // Calculate total records separately since SP_GetAllItems does not return total count
+      const [totalResult] = await pool.query(
+        'SELECT COUNT(*) AS totalRecords FROM dbo_tblitem WHERE IsDeleted = 0 ' +
+        'AND ( ? IS NULL OR CreatedDateTime >= ? ) ' +
+        'AND ( ? IS NULL OR CreatedDateTime <= ? )',
+        [
+          formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null,
+          formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null,
+          formattedToDate ? formattedToDate.toISOString().split('T')[0] : null,
+          formattedToDate ? formattedToDate.toISOString().split('T')[0] : null
+        ]
+      );
+
+      const totalRecords = totalResult[0]?.totalRecords || 0;
+
       return {
-        data: results[0] || [],
-        totalRecords: null // SP does not return total count
+        data: Array.isArray(results[0]) ? results[0] : [],
+        totalRecords,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (err) {
-      console.error('getAllItems error:', err);
+      console.error('getAllItems error:', err.stack);
       throw new Error(`Database error: ${err.message}`);
     }
   }

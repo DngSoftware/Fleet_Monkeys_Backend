@@ -4,44 +4,61 @@ class SupplierController {
   // Get all Suppliers with pagination
   static async getAllSuppliers(req, res) {
     try {
-      // Check if req.query exists
-      if (!req.query) {
+      const { pageNumber, pageSize, fromDate, toDate } = req.query;
+
+      // Validate pagination parameters
+      if (pageNumber && isNaN(parseInt(pageNumber))) {
         return res.status(400).json({
           success: false,
-          message: 'Query parameters are missing',
+          message: 'Invalid pageNumber',
           data: null,
-          totalRecords: 0
+          pagination: null
+        });
+      }
+      if (pageSize && isNaN(parseInt(pageSize))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageSize',
+          data: null,
+          pagination: null
         });
       }
 
-      // Extract and validate query parameters
-      const { pageNumber = '1', pageSize = '10', fromDate, toDate } = req.query;
-
-      const pageNum = parseInt(pageNumber, 10);
-      const pageSz = parseInt(pageSize, 10);
-
-      // Validate pagination parameters
-      if (isNaN(pageNum) || pageNum < 1 || isNaN(pageSz) || pageSz < 1) {
+      // Validate date parameters
+      if (fromDate && !/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid pageNumber or pageSize',
+          message: 'Invalid fromDate format (use YYYY-MM-DD)',
           data: null,
-          totalRecords: 0
+          pagination: null
+        });
+      }
+      if (toDate && !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid toDate format (use YYYY-MM-DD)',
+          data: null,
+          pagination: null
         });
       }
 
       const suppliers = await SupplierModel.getAllSuppliers({
-        pageNumber: pageNum,
-        pageSize: pageSz,
-        fromDate,
-        toDate
+        pageNumber: parseInt(pageNumber) || 1,
+        pageSize: parseInt(pageSize) || 10,
+        fromDate: fromDate || null,
+        toDate: toDate || null
       });
 
       return res.status(200).json({
         success: true,
         message: 'Suppliers retrieved successfully',
-        data: suppliers.data,
-        totalRecords: suppliers.totalRecords
+        data: suppliers.data || [],
+        pagination: {
+          totalRecords: suppliers.totalRecords,
+          currentPage: suppliers.currentPage,
+          pageSize: suppliers.pageSize,
+          totalPages: suppliers.totalPages
+        }
       });
     } catch (err) {
       console.error('getAllSuppliers error:', err.stack);
@@ -49,7 +66,7 @@ class SupplierController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        totalRecords: 0
+        pagination: null
       });
     }
   }

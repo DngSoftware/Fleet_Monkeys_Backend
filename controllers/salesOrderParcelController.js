@@ -14,7 +14,12 @@ class SalesOrderParcelController {
         success: true,
         message: 'Sales Order Parcel records retrieved successfully.',
         data: result.data,
-        totalRecords: result.totalRecords,
+        pagination: {
+          totalRecords: result.totalRecords,
+          currentPage: result.currentPage,
+          pageSize: result.pageSize,
+          totalPages: result.totalPages
+        },
         salesOrderParcelId: null
       });
     } catch (err) {

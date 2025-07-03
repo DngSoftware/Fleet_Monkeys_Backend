@@ -5,6 +5,27 @@ class SalesQuotationController {
   static async getAllSalesQuotations(req, res) {
     try {
       const { pageNumber, pageSize, sortColumn, sortDirection, fromDate, toDate, status, customerId, supplierId } = req.query;
+
+      // Validate query parameters
+      if (pageNumber && isNaN(parseInt(pageNumber))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageNumber',
+          data: null,
+          salesQuotationId: null,
+          newSalesQuotationId: null
+        });
+      }
+      if (pageSize && isNaN(parseInt(pageSize))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageSize',
+          data: null,
+          salesQuotationId: null,
+          newSalesQuotationId: null
+        });
+      }
+
       const result = await SalesQuotationModel.getAllSalesQuotations({
         pageNumber: parseInt(pageNumber) || 1,
         pageSize: parseInt(pageSize) || 10,
@@ -16,11 +37,17 @@ class SalesQuotationController {
         customerId: parseInt(customerId) || null,
         supplierId: parseInt(supplierId) || null
       });
+
       res.status(200).json({
         success: true,
         message: 'Sales Quotation records retrieved successfully.',
         data: result.data,
-        totalRecords: result.totalRecords,
+        pagination: {
+          totalRecords: result.totalRecords,
+          currentPage: result.currentPage,
+          pageSize: result.pageSize,
+          totalPages: result.totalPages
+        },
         salesQuotationId: null,
         newSalesQuotationId: null
       });
@@ -39,7 +66,6 @@ class SalesQuotationController {
   // Create a new Sales Quotation
   static async createSalesQuotation(req, res) {
     try {
-
       const data = {
         SalesRFQID: req.body.SalesRFQID,
         PurchaseRFQID: req.body.PurchaseRFQID,
@@ -284,7 +310,7 @@ class SalesQuotationController {
     }
   }
 
-   static async getSalesQuotationApprovalStatus(req, res) {
+  static async getSalesQuotationApprovalStatus(req, res) {
     try {
       const SalesQuotationID = parseInt(req.params.id);
       if (isNaN(SalesQuotationID)) {

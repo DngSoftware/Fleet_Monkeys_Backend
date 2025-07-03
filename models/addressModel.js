@@ -110,7 +110,7 @@ class AddressModel {
 
       // Call sp_manageaddresses
       const [results] = await pool.query(
-        `CALL SP_ManageAddresses(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)`,
+        'CALL fleet_monkey.SP_ManageAddresses(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
@@ -176,7 +176,7 @@ class AddressModel {
 
       // Call sp_manageaddresses
       const [results] = await pool.query(
-        `CALL SP_ManageAddresses(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)`,
+        'CALL fleet_monkey.SP_ManageAddresses(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
@@ -235,7 +235,7 @@ class AddressModel {
 
       // Call sp_manageaddresses
       const [results] = await pool.query(
-        `CALL SP_ManageAddresses(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)`,
+        'CALL fleet_monkey.SP_ManageAddresses(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
@@ -296,7 +296,7 @@ class AddressModel {
 
       // Call sp_manageaddresses
       const [results] = await pool.query(
-        `CALL SP_ManageAddresses(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)`,
+        'CALL fleet_monkey.SP_ManageAddresses(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 

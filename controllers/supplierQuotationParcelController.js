@@ -1,7 +1,7 @@
 const SupplierQuotationParcelModel = require('../models/supplierQuotationParcelModel');
 
 class SupplierQuotationParcelController {
-    // Get all Supplier Quotation Parcels by SupplierQuotationID
+   // Get all Supplier Quotation Parcels by SupplierQuotationID
   static async getAllSupplierQuotationParcelsBySupplierQuotationId(req, res) {
     try {
       const { supplierQuotationId } = req.params;
@@ -29,21 +29,19 @@ class SupplierQuotationParcelController {
     }
   }
 
-   // Get all Supplier Quotation Parcels by SupplierQuotationID
+  // Get all Supplier Quotation Parcels
   static async getAllSupplierQuotationParcels(req, res) {
     try {
       const { pageNumber, pageSize, fromDate, toDate } = req.query;
-      const { supplierQuotationId } = req.params;
       const result = await SupplierQuotationParcelModel.getAllSupplierQuotationParcels({
         pageNumber: parseInt(pageNumber) || 1,
         pageSize: parseInt(pageSize) || 10,
         fromDate: fromDate || null,
-        toDate: toDate || null,
-        supplierQuotationId: parseInt(supplierQuotationId) || null
+        toDate: toDate || null
       });
       res.status(200).json({
         success: true,
-        message: result.message || 'Supplier Quotation Parcels retrieved successfully.',
+        message: result.message,
         data: result.data,
         totalRecords: result.totalRecords
       });
@@ -56,7 +54,6 @@ class SupplierQuotationParcelController {
       });
     }
   }
-
   // Get a Supplier Quotation Parcel by ID
   static async getSupplierQuotationParcelById(req, res) {
     try {

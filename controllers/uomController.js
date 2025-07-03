@@ -6,18 +6,59 @@ class UOMController {
     try {
       const { pageNumber, pageSize, fromDate, toDate } = req.query;
 
+      // Validate pagination parameters
+      if (pageNumber && isNaN(parseInt(pageNumber))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageNumber',
+          data: null,
+          pagination: null
+        });
+      }
+      if (pageSize && isNaN(parseInt(pageSize))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageSize',
+          data: null,
+          pagination: null
+        });
+      }
+
+      // Validate date parameters
+      if (fromDate && !/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid fromDate format (use YYYY-MM-DD)',
+          data: null,
+          pagination: null
+        });
+      }
+      if (toDate && !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid toDate format (use YYYY-MM-DD)',
+          data: null,
+          pagination: null
+        });
+      }
+
       const uoms = await UOMModel.getAllUOMs({
-        pageNumber: parseInt(pageNumber),
-        pageSize: parseInt(pageSize),
-        fromDate,
-        toDate
+        pageNumber: parseInt(pageNumber) || 1,
+        pageSize: parseInt(pageSize) || 10,
+        fromDate: fromDate || null,
+        toDate: toDate || null
       });
 
       return res.status(200).json({
         success: true,
         message: 'UOMs retrieved successfully',
-        data: uoms.data,
-        totalRecords: uoms.totalRecords
+        data: uoms.data || [],
+        pagination: {
+          totalRecords: uoms.totalRecords,
+          currentPage: uoms.currentPage,
+          pageSize: uoms.pageSize,
+          totalPages: uoms.totalPages
+        }
       });
     } catch (err) {
       console.error('getAllUOMs error:', err);
@@ -25,7 +66,7 @@ class UOMController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        uomId: null
+        pagination: null
       });
     }
   }

@@ -1,8 +1,6 @@
 const POParcelModel = require('../models/poParcelModel');
 
 class POParcelController {
-
-  // Get all Sales Order Parcels
   static async getAllPOParcels(req, res) {
     try {
       const { pageNumber, pageSize, POID } = req.query;
@@ -12,10 +10,15 @@ class POParcelController {
         POID: parseInt(POID) || null
       });
       res.status(200).json({
-        success: true,
-        message: 'PO Parcel records retrieved successfully.',
+        success: result.success,
+        message: result.message,
         data: result.data,
-        totalRecords: result.totalRecords,
+        pagination: {
+          totalRecords: result.totalRecords,
+          currentPage: result.currentPage,
+          pageSize: result.pageSize,
+          totalPages: result.totalPages
+        },
         POParcelId: null
       });
     } catch (err) {
@@ -24,6 +27,12 @@ class POParcelController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
+        pagination: {
+          totalRecords: 0,
+          currentPage: parseInt(pageNumber) || 1,
+          pageSize: parseInt(pageSize) || 10,
+          totalPages: 0
+        },
         POParcelId: null
       });
     }

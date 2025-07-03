@@ -1,17 +1,32 @@
 const poolPromise = require('../config/db.config');
 
 class SubscriptionPlanModel {
-  // Get paginated Subscription Plans
   static async getAllSubscriptionPlans({ pageNumber = 1, pageSize = 10, fromDate = null, toDate = null }) {
     try {
       const pool = await poolPromise;
 
       // Validate parameters
+      if (pageNumber < 1) pageNumber = 1;
+      if (pageSize < 1) pageSize = 10;
+      let formattedFromDate = null, formattedToDate = null;
+
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        throw new Error('fromDate cannot be later than toDate');
+      }
+
       const queryParams = [
-        pageNumber > 0 ? pageNumber : 1,
-        pageSize > 0 ? pageSize : 10,
-        fromDate ? new Date(fromDate) : null,
-        toDate ? new Date(toDate) : null
+        pageNumber,
+        pageSize,
+        formattedFromDate ? formattedFromDate.toISOString() : null,
+        formattedToDate ? formattedToDate.toISOString() : null
       ];
 
       // Log query parameters
@@ -26,9 +41,16 @@ class SubscriptionPlanModel {
       // Log results
       console.log('getAllSubscriptionPlans results:', JSON.stringify(results, null, 2));
 
+      // Extract paginated data and total count
+      const subscriptionPlans = results[0] || [];
+      const totalRecords = results[1] && results[1][0] ? results[1][0].TotalRecords : 0;
+
       return {
-        data: results[0] || [],
-        totalRecords: results[1] && results[1][0] ? results[1][0].TotalRecords : 0
+        data: subscriptionPlans,
+        totalRecords,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (err) {
       console.error('getAllSubscriptionPlans error:', err);
@@ -36,7 +58,6 @@ class SubscriptionPlanModel {
     }
   }
 
-  // Create a new Subscription Plan
   static async createSubscriptionPlan(data) {
     try {
       const pool = await poolPromise;
@@ -52,19 +73,15 @@ class SubscriptionPlanModel {
         null // p_DeletedByID
       ];
 
-      // Log query parameters
       console.log('createSubscriptionPlan params:', queryParams);
 
-      // Call SP_ManageSubscriptionPlan with session variables for OUT parameters
       await pool.query(
         'CALL SP_ManageSubscriptionPlan(?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
-      // Fetch output parameters, including p_SubscriptionPlanID
       const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message, @p_SubscriptionPlanID AS p_SubscriptionPlanID');
 
-      // Log output
       console.log('createSubscriptionPlan output:', JSON.stringify(output, null, 2));
 
       if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
@@ -85,7 +102,6 @@ class SubscriptionPlanModel {
     }
   }
 
-  // Get a single Subscription Plan by ID
   static async getSubscriptionPlanById(id) {
     try {
       const pool = await poolPromise;
@@ -101,22 +117,17 @@ class SubscriptionPlanModel {
         null  // p_DeletedByID
       ];
 
-      // Log query parameters
       console.log('getSubscriptionPlanById params:', queryParams);
 
-      // Call SP_ManageSubscriptionPlan with session variables for OUT parameters
       const [results] = await pool.query(
         'CALL SP_ManageSubscriptionPlan(?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
-      // Log results
       console.log('getSubscriptionPlanById results:', JSON.stringify(results, null, 2));
 
-      // Fetch output parameters
       const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
 
-      // Log output
       console.log('getSubscriptionPlanById output:', JSON.stringify(output, null, 2));
 
       if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
@@ -134,7 +145,6 @@ class SubscriptionPlanModel {
     }
   }
 
-  // Update a Subscription Plan
   static async updateSubscriptionPlan(id, data) {
     try {
       const pool = await poolPromise;
@@ -150,19 +160,15 @@ class SubscriptionPlanModel {
         null // p_DeletedByID
       ];
 
-      // Log query parameters
       console.log('updateSubscriptionPlan params:', queryParams);
 
-      // Call SP_ManageSubscriptionPlan with session variables for OUT parameters
       await pool.query(
         'CALL SP_ManageSubscriptionPlan(?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
-      // Fetch output parameters
       const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
 
-      // Log output
       console.log('updateSubscriptionPlan output:', JSON.stringify(output, null, 2));
 
       if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
@@ -182,7 +188,6 @@ class SubscriptionPlanModel {
     }
   }
 
-  // Delete a Subscription Plan
   static async deleteSubscriptionPlan(id, deletedById) {
     try {
       const pool = await poolPromise;
@@ -198,19 +203,15 @@ class SubscriptionPlanModel {
         deletedById
       ];
 
-      // Log query parameters
       console.log('deleteSubscriptionPlan params:', queryParams);
 
-      // Call SP_ManageSubscriptionPlan with session variables for OUT parameters
       await pool.query(
         'CALL SP_ManageSubscriptionPlan(?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
-      // Fetch output parameters
       const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
 
-      // Log output
       console.log('deleteSubscriptionPlan output:', JSON.stringify(output, null, 2));
 
       if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {

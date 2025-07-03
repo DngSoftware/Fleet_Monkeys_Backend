@@ -6,11 +6,28 @@ class UOMModel {
     try {
       const pool = await poolPromise;
 
+      // Validate parameters
+      if (pageNumber < 1) pageNumber = 1;
+      if (pageSize < 1 || pageSize > 100) pageSize = 10; // Cap pageSize at 100
+      let formattedFromDate = null, formattedToDate = null;
+
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        throw new Error('fromDate cannot be later than toDate');
+      }
+
       const queryParams = [
-        pageNumber > 0 ? pageNumber : 1,
-        pageSize > 0 ? pageSize : 10,
-        fromDate ? new Date(fromDate) : null,
-        toDate ? new Date(toDate) : null
+        pageNumber,
+        pageSize,
+        formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null,
+        formattedToDate ? formattedToDate.toISOString().split('T')[0] : null
       ];
 
       console.log('getAllUOMs params:', JSON.stringify(queryParams, null, 2));
@@ -39,8 +56,11 @@ class UOMModel {
       }
 
       return {
-        data: results[0] || [], // Paginated UOMs from the first result set
-        totalRecords: output[0].p_TotalRecords || 0 // Total count from output parameter
+        data: Array.isArray(results[0]) ? results[0] : [],
+        totalRecords: output[0].p_TotalRecords || 0,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil((output[0].p_TotalRecords || 0) / pageSize)
       };
     } catch (err) {
       console.error('getAllUOMs error:', err.stack);

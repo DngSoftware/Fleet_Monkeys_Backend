@@ -6,18 +6,29 @@ class SupplierModel {
     try {
       const pool = await poolPromise;
 
-      // Validate pagination parameters
-      const pageNum = parseInt(pageNumber, 10);
-      const pageSz = parseInt(pageSize, 10);
-      if (isNaN(pageNum) || pageNum < 1 || isNaN(pageSz) || pageSz < 1) {
-        throw new Error('Invalid pageNumber or pageSize');
+      // Validate parameters
+      if (pageNumber < 1) pageNumber = 1;
+      if (pageSize < 1 || pageSize > 100) pageSize = 10; // Cap pageSize at 100
+      let formattedFromDate = null, formattedToDate = null;
+
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        throw new Error('fromDate cannot be later than toDate');
       }
 
-      // Validate date parameters
-      const validatedFromDate = fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate) ? fromDate : null;
-      const validatedToDate = toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate) ? toDate : null;
-
-      const queryParams = [pageNum, pageSz, validatedFromDate, validatedToDate];
+      const queryParams = [
+        pageNumber,
+        pageSize,
+        formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null,
+        formattedToDate ? formattedToDate.toISOString().split('T')[0] : null
+      ];
 
       console.log('getAllSuppliers params:', JSON.stringify(queryParams, null, 2));
 
@@ -30,22 +41,27 @@ class SupplierModel {
       console.log('getAllSuppliers results:', JSON.stringify(results, null, 2));
 
       // Fetch output parameters
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
+      const [[outParams]] = await pool.query('SELECT @p_Result AS StatusCode, @p_Message AS Message');
 
-      console.log('getAllSuppliers output:', JSON.stringify(output, null, 2));
+      console.log('getAllSuppliers output:', JSON.stringify(outParams, null, 2));
 
-      if (!output || !output[0] || output[0].p_Result === null) {
-        throw new Error('Invalid output from SP_GetAllSuppliers');
+      if (!outParams || typeof outParams.StatusCode === 'undefined') {
+        throw new Error('Output parameters missing from SP_GetAllSuppliers');
       }
 
-      // Treat p_Result = 1 or success message as success
-      if (output[0].p_Result !== 1 && !output[0].p_Message.toLowerCase().includes('successfully')) {
-        throw new Error(output[0].p_Message || 'Failed to retrieve suppliers');
+      if (outParams.StatusCode !== 0) {
+        throw new Error(outParams.Message || 'Failed to retrieve suppliers');
       }
+
+      // Extract totalRecords from the second result set
+      const totalRecords = results[1]?.[0]?.TotalRecords || 0;
 
       return {
         data: Array.isArray(results[0]) ? results[0] : [],
-        totalRecords: Array.isArray(results[1]) && results[1][0]?.TotalRecords ? results[1][0].TotalRecords : results[0].length
+        totalRecords,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (err) {
       console.error('getAllSuppliers error:', err.stack);

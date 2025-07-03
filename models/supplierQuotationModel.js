@@ -7,12 +7,31 @@ class SupplierQuotationModel {
       const pool = await poolPromise;
 
       // Validate parameters
+      if (pageNumber < 1) pageNumber = 1;
+      if (pageSize < 1 || pageSize > 100) pageSize = 10; // Cap pageSize at 100
+      let formattedFromDate = null, formattedToDate = null;
+
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        throw new Error('fromDate cannot be later than toDate');
+      }
+
       const queryParams = [
-        pageNumber > 0 ? pageNumber : 1,
-        pageSize > 0 ? pageSize : 10,
-        fromDate ? new Date(fromDate) : null,
-        toDate ? new Date(toDate) : null
+        pageNumber,
+        pageSize,
+        formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null, // Format as YYYY-MM-DD
+        formattedToDate ? formattedToDate.toISOString().split('T')[0] : null
       ];
+
+      // Log query parameters
+      console.log('getAllSupplierQuotations params:', queryParams);
 
       // Call SP_GetAllSupplierQuotation
       const [results] = await pool.query(
@@ -20,15 +39,21 @@ class SupplierQuotationModel {
         queryParams
       );
 
-      // Extract paginated data and total records
-      const data = results[0]; // First result set: paginated data
-      const totalRecords = results[1][0].TotalRecords; // Second result set: total count
+      // Log results
+      console.log('getAllSupplierQuotations results:', JSON.stringify(results, null, 2));
+
+      // Extract total count from the second result set
+      const totalRecords = results[1]?.[0]?.TotalRecords || 0;
 
       return {
-        data,
-        totalRecords
+        data: results[0] || [],
+        totalRecords,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (err) {
+      console.error('getAllSupplierQuotations error:', err);
       throw new Error(`Database error: ${err.message}`);
     }
   }
@@ -421,7 +446,7 @@ class SupplierQuotationModel {
     }
   }
 
-    static async getSupplierQuotationApprovalStatus(SupplierQuotationID) {
+  static async getSupplierQuotationApprovalStatus(SupplierQuotationID) {
     try {
       const pool = await poolPromise;
       const formName = 'Supplier Quotation';

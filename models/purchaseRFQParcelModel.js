@@ -187,7 +187,7 @@ class PurchaseRFQParcelModel {
     return await this.#executeManageStoredProcedure('SELECT', purchaseRFQParcelData);
   }
 
-     // Get all Purchase RFQ Parcels by PurchaseRFQID
+   // Get all Purchase RFQ Parcels by PurchaseRFQID
   static async getAllPurchaseRFQParcelsByPurchaseRFQId({
     purchaseRFQId,
     pageNumber = 1,

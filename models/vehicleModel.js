@@ -1,7 +1,7 @@
 const poolPromise = require('../config/db.config');
 
 class VehicleModel {
-  // Get paginated Vehicles
+  // Get paginated Vehicles with total count
   static async getAllVehicles({ pageNumber = 1, pageSize = 10 }) {
     try {
       const pool = await poolPromise;
@@ -38,9 +38,13 @@ class VehicleModel {
         throw new Error(output[0].p_Message || 'Failed to retrieve Vehicles');
       }
 
+      // SP returns two result sets: [0] = vehicle data, [1] = total count
+      const vehicleData = results[0] || [];
+      const totalRecords = results[1] && results[1][0] ? results[1][0].TotalRecords : 0;
+
       return {
-        data: results[0] || [],
-        totalRecords: null // SP does not return total count
+        data: vehicleData,
+        totalRecords: totalRecords
       };
     } catch (err) {
       console.error('getAllVehicles error:', err);

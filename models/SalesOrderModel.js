@@ -351,23 +351,75 @@ class SalesOrderModel {
     try {
       const pool = await poolPromise;
 
+      // Validate parameters
+      if (pageNumber < 1) {
+        return {
+          success: false,
+          message: 'Page number must be greater than or equal to 1.',
+          data: null,
+          pagination: null
+        };
+      }
+      if (pageSize < 1 || pageSize > 100) {
+        return {
+          success: false,
+          message: 'Page size must be between 1 and 100.',
+          data: null,
+          pagination: null
+        };
+      }
+      let formattedFromDate = null, formattedToDate = null;
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) {
+          return {
+            success: false,
+            message: 'Invalid fromDate',
+            data: null,
+            pagination: null
+          };
+        }
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) {
+          return {
+            success: false,
+            message: 'Invalid toDate',
+            data: null,
+            pagination: null
+          };
+        }
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        return {
+          success: false,
+          message: 'fromDate cannot be later than toDate',
+          data: null,
+          pagination: null
+        };
+      }
+
+      // Validate sort column to prevent SQL injection (align with stored procedure)
+      const validSortColumns = ['SalesOrderID', 'Series', 'PostingDate', 'CreatedDateTime', 'CustomerName', 'Total'];
+      const validatedSortColumn = validSortColumns.includes(sortColumn) ? sortColumn : 'CreatedDateTime';
+
+      // Validate sort direction
+      const validatedSortDirection = sortDirection.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
       const queryParams = [
         pageNumber,
         pageSize,
-        sortColumn,
-        sortDirection,
-        fromDate || null,
-        toDate || null
+        validatedSortColumn,
+        validatedSortDirection,
+        formattedFromDate || null,
+        formattedToDate || null
       ];
 
       const [result] = await pool.query(
         'CALL SP_GetAllSalesOrder(?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
-
-      console.log('SP_GetAllSalesOrder result:', JSON.stringify(result, (key, value) =>
-        typeof value === 'bigint' ? value.toString() : value
-      ));
 
       const [[outParams]] = await pool.query(
         'SELECT @p_Result AS result, @p_Message AS message'
@@ -379,25 +431,30 @@ class SalesOrderModel {
 
       const salesOrders = result[0] || [];
       const totalRecords = result[1][0]?.TotalRecords || 0;
+      const totalPages = Math.ceil(totalRecords / pageSize);
 
       return {
         success: outParams.result === 1,
         message: outParams.message || (outParams.result === 1 ? 'Sales orders retrieved successfully' : 'Operation failed'),
         data: salesOrders,
-        totalRecords: totalRecords
+        pagination: {
+          totalRecords,
+          currentPage: pageNumber,
+          pageSize,
+          totalPages
+        }
       };
     } catch (error) {
       console.error('Error in getAllSalesOrders:', error);
       return {
         success: false,
         message: `Server error: ${error.message}`,
-        data: [],
-        totalRecords: 0
+        data: null,
+        pagination: null
       };
     }
   }
 
-   // Helper: Check form role approver permission
   static async #checkFormRoleApproverPermission(approverID, formName) {
     try {
       const pool = await poolPromise;
@@ -418,7 +475,6 @@ class SalesOrderModel {
     }
   }
 
-  // Helper: Check Supplier Quotation status
   static async #checkSalesOrderStatus(SalesOrderID) {
     try {
       const pool = await poolPromise;
@@ -437,7 +493,6 @@ class SalesOrderModel {
     }
   }
 
-  // Helper: Insert approval record
   static async #insertSalesOrderApproval(connection, approvalData) {
     try {
       const query = `
@@ -460,7 +515,6 @@ class SalesOrderModel {
     }
   }
 
-  // Approve a Supplier Quotation
   static async approveSalesOrder(approvalData) {
     let connection;
     try {
@@ -494,7 +548,6 @@ class SalesOrderModel {
         throw new Error(`Sales Order status must be Pending to approve, current status: ${status}`);
       }
 
-      // Check for existing approval
       const [existingApproval] = await connection.query(
         'SELECT 1 FROM dbo_tblsalesorderapproval WHERE SalesOrderID = ? AND ApproverID = ? AND IsDeleted = 0',
         [SalesOrderID, approverID]
@@ -503,13 +556,11 @@ class SalesOrderModel {
         throw new Error('Approver has already approved this Sales Order');
       }
 
-      // Record approval
       const approvalInsertResult = await this.#insertSalesOrderApproval(connection, { SalesOrderID: SalesOrderID, ApproverID: approverID });
       if (!approvalInsertResult.success) {
         throw new Error(`Failed to insert approval record: ${approvalInsertResult.message}`);
       }
 
-      // Get FormID
       const [form] = await connection.query(
         'SELECT FormID FROM dbo_tblform WHERE FormName = ? AND IsDeleted = 0',
         [formName]
@@ -519,7 +570,6 @@ class SalesOrderModel {
       }
       const formID = form[0].FormID;
 
-      // Get required approvers
       const [requiredApproversList] = await connection.query(
         `SELECT DISTINCT fra.UserID, p.FirstName
          FROM dbo_tblformroleapprover fra
@@ -530,7 +580,6 @@ class SalesOrderModel {
       );
       const requiredCount = requiredApproversList.length;
 
-      // Get completed approvals
       const [approvedList] = await connection.query(
         `SELECT s.ApproverID, s.ApprovedYN
          FROM dbo_tblsalesorderapproval s
@@ -545,7 +594,6 @@ class SalesOrderModel {
       );
       const approved = approvedList.filter(a => a.ApprovedYN === 1).length;
 
-      // Check for mismatched ApproverIDs
       const [allApprovals] = await connection.query(
         'SELECT ApproverID FROM dbo_tblsalesorderapproval WHERE SalesOrderID = ? AND IsDeleted = 0',
         [SalesOrderID]
@@ -553,14 +601,12 @@ class SalesOrderModel {
       const requiredUserIDs = requiredApproversList.map(a => a.UserID);
       const mismatchedApprovals = allApprovals.filter(a => !requiredUserIDs.includes(a.ApproverID));
 
-      // Debug logs
       console.log(`Approval Debug: SalesOrderID=${SalesOrderID}, FormID=${formID}, RequiredApprovers=${requiredCount}, Approvers=${JSON.stringify(requiredApproversList)}, CompletedApprovals=${approved}, ApprovedList=${JSON.stringify(approvedList)}, CurrentApproverID=${approverID}, MismatchedApprovals=${JSON.stringify(mismatchedApprovals)}`);
 
       let message;
       let isFullyApproved = false;
 
       if (approved >= requiredCount) {
-        // All approvals complete
         await connection.query(
           'UPDATE dbo_tblsalesorder SET Status = ? WHERE SalesOrderID = ?',
           ['Approved', SalesOrderID]
@@ -568,7 +614,6 @@ class SalesOrderModel {
         message = 'Sales Order fully approved.';
         isFullyApproved = true;
       } else {
-        // Partial approval
         const remaining = requiredCount - approved;
         message = `Approval recorded. Awaiting ${remaining} more approval(s).`;
       }
@@ -602,12 +647,11 @@ class SalesOrderModel {
     }
   }
 
-   static async getSalesOrderApprovalStatus(SalesOrderID) {
+  static async getSalesOrderApprovalStatus(SalesOrderID) {
     try {
       const pool = await poolPromise;
       const formName = 'Sales Order';
 
-      // Get FormID
       const [form] = await pool.query(
         'SELECT FormID FROM dbo_tblform WHERE FormName = ? AND IsDeleted = 0',
         [formName]
@@ -617,7 +661,6 @@ class SalesOrderModel {
       }
       const formID = form[0].FormID;
 
-      // Get required approvers
       const [requiredApprovers] = await pool.query(
         `SELECT DISTINCT fra.UserID, p.FirstName, p.LastName
          FROM dbo_tblformroleapprover fra
@@ -627,7 +670,6 @@ class SalesOrderModel {
         [formID]
       );
 
-      // Get completed approvals
       const [completedApprovals] = await pool.query(
         `SELECT s.ApproverID, p.FirstName, p.LastName, s.ApproverDateTime
          FROM dbo_tblsalesorderapproval s
@@ -642,7 +684,6 @@ class SalesOrderModel {
         [parseInt(SalesOrderID), formID]
       );
 
-      // Prepare approval status
       const approvalStatus = requiredApprovers.map(approver => ({
         UserID: approver.UserID,
         FirstName: approver.FirstName,

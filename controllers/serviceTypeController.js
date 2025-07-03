@@ -6,18 +6,59 @@ class ServiceTypeController {
     try {
       const { pageNumber, pageSize, fromDate, toDate } = req.query;
 
+      // Validate pagination parameters
+      if (pageNumber && isNaN(parseInt(pageNumber))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageNumber',
+          data: null,
+          pagination: null
+        });
+      }
+      if (pageSize && isNaN(parseInt(pageSize))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageSize',
+          data: null,
+          pagination: null
+        });
+      }
+
+      // Validate date parameters
+      if (fromDate && !/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid fromDate format (use YYYY-MM-DD)',
+          data: null,
+          pagination: null
+        });
+      }
+      if (toDate && !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid toDate format (use YYYY-MM-DD)',
+          data: null,
+          pagination: null
+        });
+      }
+
       const serviceTypes = await ServiceTypeModel.getAllServiceTypes({
-        pageNumber: parseInt(pageNumber),
-        pageSize: parseInt(pageSize),
-        fromDate,
-        toDate
+        pageNumber: parseInt(pageNumber) || 1,
+        pageSize: parseInt(pageSize) || 10,
+        fromDate: fromDate || null,
+        toDate: toDate || null
       });
 
       return res.status(200).json({
         success: true,
         message: 'Service types retrieved successfully',
-        data: serviceTypes.data,
-        totalRecords: serviceTypes.totalRecords
+        data: serviceTypes.data || [],
+        pagination: {
+          totalRecords: serviceTypes.totalRecords,
+          currentPage: serviceTypes.currentPage,
+          pageSize: serviceTypes.pageSize,
+          totalPages: serviceTypes.totalPages
+        }
       });
     } catch (err) {
       console.error('getAllServiceTypes error:', err);
@@ -25,7 +66,7 @@ class ServiceTypeController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        serviceTypeId: null
+        pagination: null
       });
     }
   }

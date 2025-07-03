@@ -31,7 +31,7 @@ class SalesRFQModel {
         salesRFQData.CollectFromSupplierYN != null ? salesRFQData.CollectFromSupplierYN : 0,
         salesRFQData.PackagingRequiredYN != null ? salesRFQData.PackagingRequiredYN : 0,
         salesRFQData.FormCompletedYN != null ? salesRFQData.FormCompletedYN : 0,
-        salesRFQData.CreatedByID ? parseInt(salesRFQData.CreatedByID) : null
+        salesRFQData.CreatedByID ? parseInt(salesRFQData.CreatedByID) : null,
       ];
 
       const [result] = await pool.query(
@@ -48,7 +48,7 @@ class SalesRFQModel {
         message: outParams.message || (outParams.result === 1 ? `${action} operation successful` : 'Operation failed'),
         data: action === 'SELECT' ? result[0]?.[0] || null : null,
         salesRFQId: salesRFQData.SalesRFQID,
-        newSalesRFQId: outParams.newSalesRFQId
+        newSalesRFQId: outParams.newSalesRFQId,
       };
     } catch (error) {
       console.error(`Database error in ${action} operation:`, error);
@@ -60,11 +60,17 @@ class SalesRFQModel {
     try {
       const pool = await poolPromise;
 
+      // Validate pagination parameters
+      const pageNumber = parseInt(paginationData.PageNumber) || 1;
+      const pageSize = parseInt(paginationData.PageSize) || 10;
+      if (pageNumber < 1) throw new Error('PageNumber must be greater than 0');
+      if (pageSize < 1 || pageSize > 100) throw new Error('PageSize must be between 1 and 100');
+
       const queryParams = [
-        parseInt(paginationData.PageNumber) || 1,
-        parseInt(paginationData.PageSize) || 10,
+        pageNumber,
+        pageSize,
         paginationData.FromDate ? new Date(paginationData.FromDate) : null,
-        paginationData.ToDate ? new Date(paginationData.ToDate) : null
+        paginationData.ToDate ? new Date(paginationData.ToDate) : null,
       ];
 
       const [result] = await pool.query(
@@ -80,7 +86,7 @@ class SalesRFQModel {
         data: result[0] || [],
         totalRecords: totalRecords || 0,
         salesRFQId: null,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       };
     } catch (error) {
       console.error('Database error in SP_GetAllSalesRFQs:', error);
@@ -128,12 +134,12 @@ class SalesRFQModel {
         );
         if (serviceTypeCheck.length === 0) errors.push(`ServiceTypeID ${salesRFQData.ServiceTypeID} does not exist`);
       }
-      if (salesRFQData.OriginAddressID) {
+      if (salesRFQData.OriginWarehouseAddressID) {
         const [originAddressCheck] = await pool.query(
           'SELECT 1 FROM dbo_tbladdresses WHERE AddressID = ?',
-          [parseInt(salesRFQData.OriginAddressID)]
+          [parseInt(salesRFQData.OriginWarehouseAddressID)]
         );
-        if (originAddressCheck.length === 0) errors.push(`OriginAddressID ${salesRFQData.OriginAddressID} does not exist`);
+        if (originAddressCheck.length === 0) errors.push(`OriginWarehouseAddressID ${salesRFQData.OriginWarehouseAddressID} does not exist`);
       }
       if (salesRFQData.CollectionAddressID) {
         const [collectionAddressCheck] = await pool.query(
@@ -148,6 +154,13 @@ class SalesRFQModel {
           [parseInt(salesRFQData.DestinationAddressID)]
         );
         if (destinationAddressCheck.length === 0) errors.push(`DestinationAddressID ${salesRFQData.DestinationAddressID} does not exist`);
+      }
+      if (salesRFQData.DestinationWarehouseAddressID) {
+        const [destWarehouseAddressCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tbladdresses WHERE AddressID = ?',
+          [parseInt(salesRFQData.DestinationWarehouseAddressID)]
+        );
+        if (destWarehouseAddressCheck.length === 0) errors.push(`DestinationWarehouseAddressID ${salesRFQData.DestinationWarehouseAddressID} does not exist`);
       }
       if (salesRFQData.BillingAddressID) {
         const [billingAddressCheck] = await pool.query(
@@ -190,7 +203,7 @@ class SalesRFQModel {
     return errors.length > 0 ? errors.join('; ') : null;
   }
 
-   static async #checkFormRoleApproverPermission(approverID, formName) {
+  static async #checkFormRoleApproverPermission(approverID, formName) {
     try {
       const pool = await poolPromise;
       const query = `
@@ -241,9 +254,8 @@ class SalesRFQModel {
         parseInt(approvalData.SalesRFQID),
         parseInt(approvalData.ApproverID),
         1,
-        parseInt(approvalData.ApproverID)
+        parseInt(approvalData.ApproverID),
       ]);
-      console.log(`Insert Debug: SalesRFQID=${approvalData.SalesRFQID}, ApproverID=${approvalData.ApproverID}, InsertedID=${result.insertId}`);
       return { success: true, message: 'Approval record inserted successfully.', insertId: result.insertId };
     } catch (error) {
       throw new Error(`Error inserting SalesRFQ approval: ${error.message}`);
@@ -283,7 +295,6 @@ class SalesRFQModel {
         throw new Error(`SalesRFQ status must be Pending to approve, current status: ${status}`);
       }
 
-      // Check for existing approval
       const [existingApproval] = await connection.query(
         'SELECT 1 FROM dbo_tblsalesrfqapproval WHERE SalesRFQID = ? AND ApproverID = ? AND IsDeleted = 0',
         [salesRFQID, approverID]
@@ -292,13 +303,11 @@ class SalesRFQModel {
         throw new Error('Approver has already approved this SalesRFQ');
       }
 
-      // Record approval within the same transaction
       const approvalInsertResult = await this.#insertSalesRFQApproval(connection, { SalesRFQID: salesRFQID, ApproverID: approverID });
       if (!approvalInsertResult.success) {
         throw new Error(`Failed to insert approval record: ${approvalInsertResult.message}`);
       }
 
-      // Get FormID
       const [form] = await connection.query(
         'SELECT FormID FROM dbo_tblform WHERE FormName = ? AND IsDeleted = 0',
         [formName]
@@ -308,7 +317,6 @@ class SalesRFQModel {
       }
       const formID = form[0].FormID;
 
-      // Get required approvers (distinct UserID)
       const [requiredApproversList] = await connection.query(
         `SELECT DISTINCT fra.UserID, p.FirstName
          FROM dbo_tblformroleapprover fra
@@ -319,7 +327,6 @@ class SalesRFQModel {
       );
       const requiredCount = requiredApproversList.length;
 
-      // Get completed approvals, only counting those from required approvers
       const [approvedList] = await connection.query(
         `SELECT s.ApproverID, s.ApprovedYN
          FROM dbo_tblsalesrfqapproval s
@@ -334,22 +341,10 @@ class SalesRFQModel {
       );
       const approved = approvedList.filter(a => a.ApprovedYN === 1).length;
 
-      // Check for mismatched ApproverIDs
-      const [allApprovals] = await connection.query(
-        'SELECT ApproverID FROM dbo_tblsalesrfqapproval WHERE SalesRFQID = ? AND IsDeleted = 0',
-        [salesRFQID]
-      );
-      const requiredUserIDs = requiredApproversList.map(a => a.UserID);
-      const mismatchedApprovals = allApprovals.filter(a => !requiredUserIDs.includes(a.ApproverID));
-
-      // Debug logs
-      console.log(`Approval Debug: SalesRFQID=${salesRFQID}, FormID=${formID}, RequiredApprovers=${requiredCount}, Approvers=${JSON.stringify(requiredApproversList)}, CompletedApprovals=${approved}, ApprovedList=${JSON.stringify(approvedList)}, CurrentApproverID=${approverID}, MismatchedApprovals=${JSON.stringify(mismatchedApprovals)}`);
-
       let message;
       let isFullyApproved = false;
 
       if (approved >= requiredCount) {
-        // All approvals complete
         await connection.query(
           'UPDATE dbo_tblsalesrfq SET Status = ? WHERE SalesRFQID = ?',
           ['Approved', salesRFQID]
@@ -357,7 +352,6 @@ class SalesRFQModel {
         message = 'SalesRFQ fully approved.';
         isFullyApproved = true;
       } else {
-        // Partial approval
         const remaining = requiredCount - approved;
         message = `Approval recorded. Awaiting ${remaining} more approval(s).`;
       }
@@ -370,7 +364,7 @@ class SalesRFQModel {
         data: null,
         salesRFQId: salesRFQID.toString(),
         newSalesRFQId: null,
-        isFullyApproved
+        isFullyApproved,
       };
     } catch (error) {
       if (connection) {
@@ -382,7 +376,7 @@ class SalesRFQModel {
         message: `Approval failed: ${error.message || 'Unknown error'}`,
         data: null,
         salesRFQId: approvalData.SalesRFQID.toString(),
-        newSalesRFQId: null
+        newSalesRFQId: null,
       };
     } finally {
       if (connection) {
@@ -391,7 +385,6 @@ class SalesRFQModel {
     }
   }
 
-  
   static async createSalesRFQ(salesRFQData) {
     const requiredFields = ['CompanyID', 'CustomerID', 'CreatedByID'];
     const missingFields = requiredFields.filter(field => !salesRFQData[field]);
@@ -401,7 +394,7 @@ class SalesRFQModel {
         message: `${missingFields.join(', ')} are required`,
         data: null,
         salesRFQId: null,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       };
     }
 
@@ -414,7 +407,7 @@ class SalesRFQModel {
         message: `Validation failed: ${fkErrors}`,
         data: null,
         salesRFQId: null,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       };
     }
 
@@ -428,7 +421,7 @@ class SalesRFQModel {
         message: 'SalesRFQID is required for UPDATE',
         data: null,
         salesRFQId: null,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       };
     }
 
@@ -439,7 +432,7 @@ class SalesRFQModel {
         message: `Validation failed: ${fkErrors}`,
         data: null,
         salesRFQId: salesRFQData.SalesRFQID,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       };
     }
 
@@ -453,7 +446,7 @@ class SalesRFQModel {
         message: 'SalesRFQID is required for DELETE',
         data: null,
         salesRFQId: null,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       };
     }
 
@@ -464,7 +457,7 @@ class SalesRFQModel {
         message: `Validation failed: ${fkErrors}`,
         data: null,
         salesRFQId: salesRFQData.SalesRFQID,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       };
     }
 
@@ -478,7 +471,7 @@ class SalesRFQModel {
         message: 'SalesRFQID is required for SELECT',
         data: null,
         salesRFQId: null,
-        newSalesRFQId: null
+        newSalesRFQId: null,
       };
     }
 
@@ -494,7 +487,6 @@ class SalesRFQModel {
       const pool = await poolPromise;
       const formName = 'Sales RFQ';
 
-      // Get FormID
       const [form] = await pool.query(
         'SELECT FormID FROM dbo_tblform WHERE FormName = ? AND IsDeleted = 0',
         [formName]
@@ -504,7 +496,6 @@ class SalesRFQModel {
       }
       const formID = form[0].FormID;
 
-      // Get required approvers
       const [requiredApprovers] = await pool.query(
         `SELECT DISTINCT fra.UserID, p.FirstName, p.LastName
          FROM dbo_tblformroleapprover fra
@@ -514,7 +505,6 @@ class SalesRFQModel {
         [formID]
       );
 
-      // Get completed approvals
       const [completedApprovals] = await pool.query(
         `SELECT s.ApproverID, p.FirstName, p.LastName, s.ApproverDateTime
          FROM dbo_tblsalesrfqapproval s
@@ -529,13 +519,12 @@ class SalesRFQModel {
         [parseInt(salesRFQID), formID]
       );
 
-      // Prepare approval status
       const approvalStatus = requiredApprovers.map(approver => ({
         UserID: approver.UserID,
         FirstName: approver.FirstName,
         LastName: approver.LastName,
         Approved: completedApprovals.some(a => a.ApproverID === approver.UserID),
-        ApproverDateTime: completedApprovals.find(a => a.ApproverID === approver.UserID)?.ApproverDateTime || null
+        ApproverDateTime: completedApprovals.find(a => a.ApproverID === approver.UserID)?.ApproverDateTime || null,
       }));
 
       return {
@@ -545,10 +534,10 @@ class SalesRFQModel {
           salesRFQID,
           requiredApprovers: requiredApprovers.length,
           completedApprovals: completedApprovals.length,
-          approvalStatus
+          approvalStatus,
         },
         salesRFQId: salesRFQID.toString(),
-        newSalesRFQId: null
+        newSalesRFQId: null,
       };
     } catch (error) {
       console.error('Error in getSalesRFQApprovalStatus:', error);

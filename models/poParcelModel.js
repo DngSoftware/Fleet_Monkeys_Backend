@@ -179,7 +179,6 @@ class POParcelModel {
     }
   }
 
-  // Get all Sales Order Parcels
   static async getAllPOParcels({
     pageNumber = 1,
     pageSize = 10,
@@ -231,15 +230,31 @@ class POParcelModel {
         throw new Error(`Stored procedure error: ${errorLog?.ErrorMessage || outParams.message || 'Unknown error'}`);
       }
 
+      // Extract total count from the second result set
+      const totalRecords = result[1]?.[0]?.TotalRecords || result[0].length;
+
       return {
-        data: result[0],
-        totalRecords: result[0].length
+        success: outParams.result === 1,
+        message: outParams.message || (outParams.result === 1 ? 'PO Parcels retrieved successfully' : 'Operation failed'),
+        data: result[0] || [],
+        totalRecords,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (err) {
       const errorMessage = err.sqlState ? 
         `Database error: ${err.message} (SQLSTATE: ${err.sqlState})` : 
-        `Database error: ${err.message}`;
-      throw new Error(errorMessage);
+        Ascending `Database error: ${err.message}`;
+      return {
+        success: false,
+        message: errorMessage,
+        data: [],
+        totalRecords: 0,
+        currentPage: pageNumber,
+        pageSize,
+        totalPages: 0
+      };
     }
   }
 

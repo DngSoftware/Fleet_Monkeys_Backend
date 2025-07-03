@@ -20,12 +20,26 @@ class PurchaseRFQToSupplierModel {
       if (!Number.isInteger(pageSize) || pageSize <= 0) {
         throw new Error('Invalid pageSize: must be a positive integer');
       }
+      if (pageSize > 100) pageSize = 100; // Cap pageSize at 100
+
+      let formattedFromDate = null, formattedToDate = null;
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        throw new Error('fromDate cannot be later than toDate');
+      }
 
       const queryParams = [
         pageNumber,
         pageSize,
-        fromDate || null,
-        toDate || null,
+        formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null,
+        formattedToDate ? formattedToDate.toISOString().split('T')[0] : null,
         purchaseRFQId || null,
         supplierId || null
       ];
@@ -48,9 +62,15 @@ class PurchaseRFQToSupplierModel {
         throw new Error(`Stored procedure error: ${errorLog?.ErrorMessage || outParams.message || 'Unknown error'}`);
       }
 
+      // Extract TotalRecords from the second result set, fallback to result[0].length if not available
+      const totalRecords = result[1] && result[1][0] ? result[1][0].TotalRecords : result[0].length;
+
       return {
         data: result[0],
-        totalRecords: result[0].length,
+        totalRecords: totalRecords,
+        currentPage: pageNumber,
+        pageSize: pageSize,
+        totalPages: Math.ceil(totalRecords / pageSize),
         message: outParams.message
       };
     } catch (err) {
