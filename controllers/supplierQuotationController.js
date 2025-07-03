@@ -11,26 +11,22 @@ class SupplierQuotationController {
         return res.status(400).json({
           success: false,
           message: 'Invalid pageNumber',
-          data: null,
-          supplierQuotationId: null,
-          newSupplierQuotationId: null,
+          data: null
         });
       }
       if (pageSize && isNaN(parseInt(pageSize))) {
         return res.status(400).json({
           success: false,
           message: 'Invalid pageSize',
-          data: null,
-          supplierQuotationId: null,
-          newSupplierQuotationId: null,
+          data: null
         });
       }
 
       const result = await SupplierQuotationModel.getAllSupplierQuotations({
         pageNumber: parseInt(pageNumber) || 1,
         pageSize: parseInt(pageSize) || 10,
-        fromDate,
-        toDate,
+        fromDate: fromDate || null,
+        toDate: toDate || null
       });
 
       res.status(200).json({
@@ -41,19 +37,15 @@ class SupplierQuotationController {
           totalRecords: result.totalRecords,
           currentPage: result.currentPage,
           pageSize: result.pageSize,
-          totalPages: result.totalPages,
-        },
-        supplierQuotationId: null,
-        newSupplierQuotationId: null,
+          totalPages: result.totalPages
+        }
       });
     } catch (err) {
       console.error('Error in getAllSupplierQuotations:', err);
       res.status(500).json({
         success: false,
         message: `Server error: ${err.message}`,
-        data: null,
-        supplierQuotationId: null,
-        newSupplierQuotationId: null,
+        data: null
       });
     }
   }
