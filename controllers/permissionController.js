@@ -34,10 +34,10 @@ class PermissionController {
     try {
       const data = req.body;
       // Validate required fields
-      if (!data.permissionName || !data.createdById) {
+      if (!data.tablePermission || !data.createdById) {
         return res.status(400).json({
           success: false,
-          message: 'PermissionName and CreatedById are required.',
+          message: 'TablePermission and CreatedById are required.',
           data: null,
           permissionId: null
         });

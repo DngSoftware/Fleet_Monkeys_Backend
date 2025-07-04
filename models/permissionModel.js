@@ -41,7 +41,7 @@ class PermissionModel {
       const queryParams = [
         'INSERT',
         null, // p_PermissionID
-        data.permissionName,
+        data.tablePermission,
         data.createdById,
         null // p_DeletedByID
       ];
@@ -104,7 +104,7 @@ class PermissionModel {
       const queryParams = [
         'UPDATE',
         id,
-        data.permissionName || null,
+        data.tablePermission || null,
         data.createdById,
         null // p_DeletedByID
       ];
