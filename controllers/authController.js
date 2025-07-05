@@ -274,8 +274,8 @@ class AuthController {
       if (userData.EmailID && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userData.EmailID)) {
         return res.status(400).json({ message: 'Invalid EmailID format' });
       }
-      if (userData.Password && userData.Password.trim().length < 6) {
-        return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+      if (userData.Password && userData.Password.trim().length < 8) {
+        return res.status(400).json({ message: 'Password must be at least 8 characters long' });
       }
 
       const updatedUser = await User.updateUserProfile(req.user.personId, userData);
