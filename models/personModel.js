@@ -26,31 +26,41 @@ class PersonModel {
       const queryParams = [
         pageNumber,
         pageSize,
-        formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null,
-        formattedToDate ? formattedToDate.toISOString().split('T')[0] : null
+        formattedFromDate ? formattedFromDate.toISOString() : null,
+        formattedToDate ? formattedToDate.toISOString() : null
       ];
 
-      console.log('getAllPersons params:', JSON.stringify(queryParams, null, 2));
+      // Log query parameters
+      console.log('getAllPersons params:', queryParams);
 
       // Call SP_GetAllPerson
       const [results] = await pool.query(
-        'CALL SP_GetAllPerson(?, ?, ?, ?)',
+        `CALL SP_GetAllPerson(?, ?, ?, ?)`,
         queryParams
       );
 
+      // Log results
       console.log('getAllPersons results:', JSON.stringify(results, null, 2));
 
-      const totalRecords = results[1] && results[1][0] ?(results[1][0].TotalRecords || 0) : 0;
+      // Calculate total records
+      const [countResult] = await pool.query(
+        `SELECT COUNT(*) AS totalRecords 
+         FROM dbo_tblperson p 
+         WHERE (p.IsDeleted = 0 OR p.IsDeleted IS NULL)
+           AND (? IS NULL OR p.CreatedDateTime >= ?)
+           AND (? IS NULL OR p.CreatedDateTime <= ?)`,
+        [formattedFromDate, formattedFromDate, formattedToDate, formattedToDate]
+      );
 
       return {
-        data: Array.isArray(results[0]) ? results[0] : [],
-        totalRecords,
+        data: results[0] || [],
+        totalRecords: countResult[0].totalRecords || 0,
         currentPage: pageNumber,
         pageSize,
-        totalPages: Math.ceil(totalRecords / pageSize)
+        totalPages: Math.ceil(countResult[0].totalRecords / pageSize)
       };
     } catch (err) {
-      console.error('getAllPersons error:', err.stack);
+      console.error('getAllPersons error:', err);
       throw new Error(`Database error: ${err.message}`);
     }
   }
@@ -71,28 +81,31 @@ class PersonModel {
         data.salutation,
         data.designation,
         data.gender,
-        data.dob ? new Date(data.dob) : null,
-        data.joiningDate ? new Date(data.joiningDate) : null,
+        data.dob,
+        data.joiningDate,
         data.companyId,
-        data.isExternal,
+        data.isExternal ? 1 : 0,
         data.loginId,
         data.password,
         data.emailId,
-        data.isDarkMode,
+        data.isDarkMode ? 1 : 0,
         data.createdById
       ];
 
       // Log query parameters
       console.log('createPerson params:', queryParams);
 
-      // Call SP_ManagePerson with session variables for OUT/INOUT parameters
-      await pool.query(
-        'CALL SP_ManagePerson(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
+      // Call SP_ManagePerson
+      const [results] = await pool.query(
+        `CALL SP_ManagePerson(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)`,
         queryParams
       );
 
-      // Fetch output parameters, including p_PersonID
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message, @p_PersonID AS p_PersonID');
+      // Log results
+      console.log('createPerson results:', JSON.stringify(results, null, 2));
+
+      // Fetch output parameters
+      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
 
       // Log output
       console.log('createPerson output:', JSON.stringify(output, null, 2));
@@ -105,8 +118,12 @@ class PersonModel {
         throw new Error(output[0].p_Message || 'Failed to create Person');
       }
 
+      // Extract personId from the message
+      const personIdMatch = output[0].p_Message.match(/ID: (\d+)/);
+      const personId = personIdMatch ? parseInt(personIdMatch[1]) : results.insertId || null;
+
       return {
-        personId: output[0].p_PersonID || null,
+        personId,
         message: output[0].p_Message
       };
     } catch (err) {
@@ -139,16 +156,15 @@ class PersonModel {
         null, // p_Password
         null, // p_EmailID
         null, // p_IsDarkMode
-        null, // p_CreatedByID
-        null // p_ProfileImage
+        null  // p_CreatedByID
       ];
 
       // Log query parameters
       console.log('getPersonById params:', queryParams);
 
-      // Call SP_ManagePerson with session variables for OUT/INOUT parameters
+      // Call SP_ManagePerson
       const [results] = await pool.query(
-        'CALL SP_ManagePerson(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
+        `CALL SP_ManagePerson(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)`,
         queryParams
       );
 
@@ -192,25 +208,28 @@ class PersonModel {
         data.salutation,
         data.designation,
         data.gender,
-        data.dob ? new Date(data.dob) : null,
-        data.joiningDate ? new Date(data.joiningDate) : null,
+        data.dob,
+        data.joiningDate,
         data.companyId,
-        data.isExternal,
+        data.isExternal ? 1 : 0,
         data.loginId,
         data.password,
         data.emailId,
-        data.isDarkMode,
+        data.isDarkMode ? 1 : 0,
         data.createdById
       ];
 
       // Log query parameters
       console.log('updatePerson params:', queryParams);
 
-      // Call SP_ManagePerson with session variables for OUT/INOUT parameters
-      await pool.query(
-        'CALL SP_ManagePerson(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
+      // Call SP_ManagePerson
+      const [results] = await pool.query(
+        `CALL SP_ManagePerson(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)`,
         queryParams
       );
+
+      // Log results
+      console.log('updatePerson results:', JSON.stringify(results, null, 2));
 
       // Fetch output parameters
       const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
@@ -259,18 +278,20 @@ class PersonModel {
         null, // p_Password
         null, // p_EmailID
         null, // p_IsDarkMode
-        createdById,
-        null // p_ProfileImage
+        createdById
       ];
 
       // Log query parameters
       console.log('deletePerson params:', queryParams);
 
-      // Call SP_ManagePerson with session variables for OUT/INOUT parameters
-      await pool.query(
-        'CALL SP_ManagePerson(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
+      // Call SP_ManagePerson
+      const [results] = await pool.query(
+        `CALL SP_ManagePerson(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)`,
         queryParams
       );
+
+      // Log results
+      "deletePerson results:", JSON.stringify(results, null, 2);
 
       // Fetch output parameters
       const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');

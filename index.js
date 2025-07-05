@@ -65,6 +65,7 @@ const inquiryTrackingRoutes = require('./routes/inquiryTrackingRoutes');
 const commentsRoutes = require('./routes/commentsRoutes');
 const tableCountsRoutes = require('./routes/tableCountsRoutes');
 
+
 const app = express();
 
 // Middleware
@@ -200,7 +201,8 @@ async function startServer() {
       ['/api/purchaseRFQToSupplier', purchaseRFQToSupplierRoutes],
       ['/api/inquiryTracking', inquiryTrackingRoutes],
       ['/api/comments', commentsRoutes],
-      ['/api/tableCounts', tableCountsRoutes]
+      ['/api/tableCounts', tableCountsRoutes],
+  
     ];
 
     routes.forEach(([path, route]) => {
@@ -221,7 +223,7 @@ async function startServer() {
     });
 
     // dummy
-    const PORT = process.env.PORT || 7001;
+    const PORT = process.env.PORT || 7000;
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
     });
