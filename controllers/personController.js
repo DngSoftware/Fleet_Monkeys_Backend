@@ -1,20 +1,18 @@
 const PersonModel = require('../models/personModel');
-const fs = require('fs');
-const path = require('path');
 
 class PersonController {
-  // Get all persons with pagination
+  // Get all Persons with pagination
   static async getAllPersons(req, res) {
     try {
       const { pageNumber, pageSize, fromDate, toDate } = req.query;
 
-      // Validate pagination parameters
+      // Validate query parameters
       if (pageNumber && isNaN(parseInt(pageNumber))) {
         return res.status(400).json({
           success: false,
           message: 'Invalid pageNumber',
           data: null,
-          pagination: null
+          personId: null
         });
       }
       if (pageSize && isNaN(parseInt(pageSize))) {
@@ -22,39 +20,21 @@ class PersonController {
           success: false,
           message: 'Invalid pageSize',
           data: null,
-          pagination: null
-        });
-      }
-
-      // Validate date parameters
-      if (fromDate && !/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid fromDate format (use YYYY-MM-DD)',
-          data: null,
-          pagination: null
-        });
-      }
-      if (toDate && !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid toDate format (use YYYY-MM-DD)',
-          data: null,
-          pagination: null
+          personId: null
         });
       }
 
       const persons = await PersonModel.getAllPersons({
         pageNumber: parseInt(pageNumber) || 1,
         pageSize: parseInt(pageSize) || 10,
-        fromDate: fromDate || null,
-        toDate: toDate || null
+        fromDate,
+        toDate
       });
 
       return res.status(200).json({
         success: true,
         message: 'Persons retrieved successfully',
-        data: persons.data || [],
+        data: persons.data,
         pagination: {
           totalRecords: persons.totalRecords,
           currentPage: persons.currentPage,
@@ -68,12 +48,12 @@ class PersonController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        pagination: null
+        personId: null
       });
     }
   }
 
-  // Create a new person
+  // Create a new Person
   static async createPerson(req, res) {
     try {
       const {
@@ -93,15 +73,14 @@ class PersonController {
         password,
         emailId,
         isDarkMode,
-        createdById,
-        profileImage
+        createdById
       } = req.body;
 
       // Basic validation
-      if (!firstName || !lastName || !roleId || !status || !loginId || !emailId || !createdById) {
+      if (!createdById) {
         return res.status(400).json({
           success: false,
-          message: 'FirstName, LastName, RoleID, CompanyID, LoginID, EmailID, and CreatedByID are required',
+          message: 'CreatedByID is required',
           data: null,
           personId: null
         });
@@ -124,12 +103,11 @@ class PersonController {
         password,
         emailId,
         isDarkMode,
-        createdById,
-        profileImage
+        createdById
       });
 
-      return res.status(result.success ? 201 : 400).json({
-        success: result.success,
+      return res.status(201).json({
+        success: true,
         message: result.message,
         data: null,
         personId: result.personId
@@ -145,7 +123,7 @@ class PersonController {
     }
   }
 
-  // Get a single person by ID
+  // Get a single Person by ID
   static async getPersonById(req, res) {
     try {
       const { id } = req.params;
@@ -187,7 +165,7 @@ class PersonController {
     }
   }
 
-  // Update a person
+  // Update a Person
   static async updatePerson(req, res) {
     try {
       const { id } = req.params;
@@ -208,8 +186,7 @@ class PersonController {
         password,
         emailId,
         isDarkMode,
-        createdById,
-        profileImage
+        createdById
       } = req.body;
 
       if (!id || isNaN(id)) {
@@ -221,10 +198,10 @@ class PersonController {
         });
       }
 
-      if (!firstName || !lastName || !roleId || !companyId || !loginId || !emailId || !createdById) {
+      if (!createdById) {
         return res.status(400).json({
           success: false,
-          message: 'FirstName, LastName, RoleID, CompanyID, LoginID, EmailID, and CreatedByID are required',
+          message: 'CreatedByID is required',
           data: null,
           personId: id
         });
@@ -247,12 +224,11 @@ class PersonController {
         password,
         emailId,
         isDarkMode,
-        createdById,
-        profileImage
+        createdById
       });
 
-      return res.status(result.success ? 200 : 400).json({
-        success: result.success,
+      return res.status(200).json({
+        success: true,
         message: result.message,
         data: null,
         personId: id
@@ -268,7 +244,7 @@ class PersonController {
     }
   }
 
-  // Delete a person
+  // Delete a Person
   static async deletePerson(req, res) {
     try {
       const { id } = req.params;
@@ -283,19 +259,10 @@ class PersonController {
         });
       }
 
-      if (!createdById) {
-        return res.status(400).json({
-          success: false,
-          message: 'CreatedByID is required',
-          data: null,
-          personId: id
-        });
-      }
-
       const result = await PersonModel.deletePerson(parseInt(id), createdById);
 
-      return res.status(result.success ? 200 : 400).json({
-        success: result.success,
+      return res.status(200).json({
+        success: true,
         message: result.message,
         data: null,
         personId: id
