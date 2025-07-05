@@ -36,8 +36,7 @@ class AuthController {
         0
       );
 
-      // Fetch the RoleID for 'Administrator' (already 2, but let's be consistent)
-      const adminRole = await User.getRoleById(2); // RoleID 2 is 'Administrator'
+      const adminRole = await User.getRoleById(2);
       if (!adminRole) {
         return res.status(500).json({ message: 'Administrator role not found in database' });
       }
@@ -97,8 +96,7 @@ class AuthController {
         req.user.personId
       );
 
-      // Fetch the RoleID for 'Administrator' (already 2, but let's be consistent)
-      const adminRole = await User.getRoleById(2); // RoleID 2 is 'Administrator'
+      const adminRole = await User.getRoleById(2);
       if (!adminRole) {
         return res.status(500).json({ message: 'Administrator role not found in database' });
       }
@@ -242,6 +240,79 @@ class AuthController {
     } catch (error) {
       console.error('Error logging in:', error);
       return res.status(500).json({ message: 'Error logging in', error: error.message });
+    }
+  }
+
+  static async updateProfile(req, res) {
+    try {
+      if (!req.user || !req.user.personId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const userData = req.body;
+      const allowedFields = [
+        'FirstName', 'MiddleName', 'LastName', 'EmailID', 'LoginID', 'Password',
+        'Salutation', 'Designation', 'Gender', 'DOB', 'JoiningDate', 
+        'Is_Dark_Mode', 'ProfileImage'
+      ];
+
+      // Check for invalid fields
+      const invalidFields = Object.keys(userData).filter(field => !allowedFields.includes(field));
+      if (invalidFields.length > 0) {
+        return res.status(400).json({ 
+          message: `Invalid fields provided: ${invalidFields.join(', ')}` 
+        });
+      }
+
+      // Validate required fields
+      if (userData.FirstName === '') {
+        return res.status(400).json({ message: 'FirstName cannot be empty' });
+      }
+      if (userData.LastName === '') {
+        return res.status(400).json({ message: 'LastName cannot be empty' });
+      }
+      if (userData.EmailID && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userData.EmailID)) {
+        return res.status(400).json({ message: 'Invalid EmailID format' });
+      }
+      if (userData.Password && userData.Password.trim().length < 6) {
+        return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+      }
+
+      const updatedUser = await User.updateUserProfile(req.user.personId, userData);
+
+      return res.status(200).json({
+        message: 'Profile updated successfully',
+        user: {
+          personId: updatedUser.PersonID,
+          firstName: updatedUser.FirstName,
+          middleName: updatedUser.MiddleName,
+          lastName: updatedUser.LastName,
+          roleId: updatedUser.RoleID,
+          roleName: updatedUser.RoleName,
+          status: updatedUser.Status,
+          salutation: updatedUser.Salutation,
+          designation: updatedUser.Designation,
+          gender: updatedUser.Gender,
+          dob: updatedUser.DOB,
+          joiningDate: updatedUser.JoiningDate,
+          companyId: updatedUser.CompanyID,
+          companyName: updatedUser.CompanyName,
+          isExternal: updatedUser.IsExternal,
+          loginId: updatedUser.LoginID,
+          emailId: updatedUser.EmailID,
+          isDarkMode: updatedUser.Is_Dark_Mode,
+          profileImage: updatedUser.ProfileImage,
+          createdById: updatedUser.CreatedByID,
+          createdDateTime: updatedUser.CreatedDateTime,
+          isDeleted: updatedUser.IsDeleted,
+          deletedDateTime: updatedUser.DeletedDateTime,
+          deletedById: updatedUser.DeletedByID,
+          rowVersionColumn: updatedUser.RowVersionColumn
+        }
+      });
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      return res.status(500).json({ message: 'Error updating profile', error: error.message });
     }
   }
 
