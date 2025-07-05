@@ -80,9 +80,36 @@ class User {
   static async getUserByLoginID(LoginID) {
     const pool = await poolPromise;
     const query = `
-      SELECT p.PersonID, p.LoginID, p.Password, p.RoleID, r.RoleName
+      SELECT 
+        p.PersonID, 
+        p.FirstName, 
+        p.MiddleName, 
+        p.LastName, 
+        p.RoleID, 
+        p.Status, 
+        p.Salutation, 
+        p.Designation, 
+        p.Gender, 
+        p.DOB, 
+        p.JoiningDate, 
+        p.CompanyID, 
+        p.IsExternal, 
+        p.LoginID, 
+        p.Password, 
+        p.EmailID, 
+        p.Is_Dark_Mode, 
+        p.ProfileImage, 
+        p.CreatedByID, 
+        p.CreatedDateTime, 
+        p.IsDeleted, 
+        p.DeletedDateTime, 
+        p.DeletedByID, 
+        p.RowVersionColumn,
+        r.RoleName,
+        c.CompanyName
       FROM dbo_tblperson p 
-      JOIN dbo_tblroles r ON p.RoleID = r.RoleID
+      LEFT JOIN dbo_tblroles r ON p.RoleID = r.RoleID
+      LEFT JOIN dbo_tblcompany c ON p.CompanyID = c.CompanyID
       WHERE p.LoginID = ? AND p.IsDeleted = 0;
     `;
     const [rows] = await pool.query(query, [LoginID?.trim()]);
@@ -92,9 +119,36 @@ class User {
   static async getUserByPersonID(PersonID) {
     const pool = await poolPromise;
     const query = `
-      SELECT p.PersonID, p.LoginID, p.Password, p.RoleID, r.RoleName
+      SELECT 
+        p.PersonID, 
+        p.FirstName, 
+        p.MiddleName, 
+        p.LastName, 
+        p.RoleID, 
+        p.Status, 
+        p.Salutation, 
+        p.Designation, 
+        p.Gender, 
+        p.DOB, 
+        p.JoiningDate, 
+        p.CompanyID, 
+        p.IsExternal, 
+        p.LoginID, 
+        p.Password, 
+        p.EmailID, 
+        p.Is_Dark_Mode, 
+        p.ProfileImage, 
+        p.CreatedByID, 
+        p.CreatedDateTime, 
+        p.IsDeleted, 
+        p.DeletedDateTime, 
+        p.DeletedByID, 
+        p.RowVersionColumn,
+        r.RoleName,
+        c.CompanyName
       FROM dbo_tblperson p 
-      JOIN dbo_tblroles r ON p.RoleID = r.RoleID
+      LEFT JOIN dbo_tblroles r ON p.RoleID = r.RoleID
+      LEFT JOIN dbo_tblcompany c ON p.CompanyID = c.CompanyID
       WHERE p.PersonID = ? AND p.IsDeleted = 0;
     `;
     const [rows] = await pool.query(query, [parseInt(PersonID)]);

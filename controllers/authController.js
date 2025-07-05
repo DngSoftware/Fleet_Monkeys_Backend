@@ -213,9 +213,30 @@ class AuthController {
         token,
         user: {
           personId: user.PersonID,
-          loginID: user.LoginID,
+          firstName: user.FirstName,
+          middleName: user.MiddleName,
+          lastName: user.LastName,
           roleId: user.RoleID,
-          roleName: user.RoleName
+          roleName: user.RoleName,
+          status: user.Status,
+          salutation: user.Salutation,
+          designation: user.Designation,
+          gender: user.Gender,
+          dob: user.DOB,
+          joiningDate: user.JoiningDate,
+          companyId: user.CompanyID,
+          companyName: user.CompanyName,
+          isExternal: user.IsExternal,
+          loginId: user.LoginID,
+          emailId: user.EmailID,
+          isDarkMode: user.Is_Dark_Mode,
+          profileImage: user.ProfileImage,
+          createdById: user.CreatedByID,
+          createdDateTime: user.CreatedDateTime,
+          isDeleted: user.IsDeleted,
+          deletedDateTime: user.DeletedDateTime,
+          deletedById: user.DeletedByID,
+          rowVersionColumn: user.RowVersionColumn
         }
       });
     } catch (error) {
