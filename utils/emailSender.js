@@ -33,6 +33,11 @@ async function sendDocumentEmail(toEmail, series, pdfBuffer, documentType) {
         text = `Dear Supplier,\n\nPlease find attached the Purchase Order (${series}) for your review. Kindly confirm receipt at your earliest convenience.\n\nBest regards,\nFleet Monkey Team`;
         filenamePrefix = 'PurchaseOrder';
         break;
+      case 'SalesInvoice':
+        subject = `Sales Invoice: ${series}`;
+        text = `Dear Customer,\n\nPlease find attached the Sales Invoice (${series}) for your review. Kindly confirm receipt and proceed with payment at your earliest convenience.\n\nBest regards,\nFleet Monkey Team`;
+        filenamePrefix = 'SalesInvoice';
+        break;
       default:
         throw new Error(`Invalid document type: ${documentType}`);
     }
