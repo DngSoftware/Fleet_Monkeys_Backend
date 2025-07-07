@@ -1,4 +1,8 @@
 const SalesRFQModel = require('../models/salesRFQModel');
+const { generateSalesRFQPDF } = require('../services/salesRFQPDFGenerator');
+const { sendDocumentEmail } = require('../utils/emailSender');
+const fs = require('fs');
+const poolPromise = require('../config/db.config');
 
 class SalesRFQController {
   static async createSalesRFQ(req, res) {
@@ -28,12 +32,106 @@ class SalesRFQController {
         PackagingRequiredYN: req.body.PackagingRequiredYN != null ? Boolean(req.body.PackagingRequiredYN) : null,
         FormCompletedYN: req.body.FormCompletedYN != null ? Boolean(req.body.FormCompletedYN) : null,
         CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
+        CompanyName: req.body.CompanyName, // Add if available in request
+        City: req.body.City, // Add if available in request
       };
 
       const result = await SalesRFQModel.createSalesRFQ(salesRFQData);
-      return res.status(result.success ? 201 : 400).json(result);
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      return res.status(201).json({
+        ...result,
+        message: 'Sales RFQ created successfully. Please create parcels and send email separately if needed.',
+      });
     } catch (error) {
       console.error('Create SalesRFQ error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        salesRFQId: null,
+        newSalesRFQId: null,
+      });
+    }
+  }
+
+  static async sendSalesRFQEmail(req, res) {
+    try {
+      const { salesRFQId } = req.params;
+      if (!salesRFQId || isNaN(parseInt(salesRFQId))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Valid SalesRFQID is required',
+          data: null,
+          salesRFQId: null,
+          newSalesRFQId: null,
+        });
+      }
+
+      const pool = await poolPromise;
+      console.log('Resolved Pool object:', pool);
+
+      // Fetch customer email
+      const [customer] = await pool.query(
+        'SELECT CustomerEmail FROM dbo_tblcustomer WHERE CustomerID = (SELECT CustomerID FROM dbo_tblsalesrfq WHERE SalesRFQID = ?)',
+        [salesRFQId]
+      );
+
+      if (customer.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Customer email not found',
+          data: null,
+          salesRFQId: null,
+          newSalesRFQId: null,
+        });
+      }
+
+      // Fetch parcels
+      const [parcels] = await pool.query(
+        'SELECT ItemID, ItemQuantity, UOMID FROM dbo_tblsalesrfqparcel WHERE SalesRFQID = ? AND IsDeleted = 0',
+        [salesRFQId]
+      );
+
+      // Fetch SalesRFQ data with CompanyName from dbo_tblcompany
+      const [salesRFQData] = await pool.query(
+        'SELECT s.Series, s.CustomerID, s.DeliveryDate, s.Terms, c.CompanyName ' +
+        'FROM dbo_tblsalesrfq s ' +
+        'LEFT JOIN dbo_tblcompany c ON s.CompanyID = c.CompanyID ' +
+        'WHERE s.SalesRFQID = ?',
+        [salesRFQId]
+      );
+
+      if (salesRFQData.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Sales RFQ not found',
+          data: null,
+          salesRFQId: null,
+          newSalesRFQId: null,
+        });
+      }
+
+      // Generate PDF (using default City value 'N/A' since it's not in the query)
+      const pdfBuffer = await generateSalesRFQPDF({
+        ...salesRFQData[0],
+        City: 'N/A' // Placeholder since City is not fetched; adjust if needed
+      }, parcels);
+
+      // Send email
+      await sendDocumentEmail(customer[0].CustomerEmail, salesRFQData[0].Series, pdfBuffer, 'SalesRFQ');
+
+      return res.status(200).json({
+        success: true,
+        message: 'Email sent successfully',
+        data: null,
+        salesRFQId: salesRFQId,
+        newSalesRFQId: null,
+      });
+    } catch (error) {
+      console.error('Send SalesRFQ Email error:', error);
       return res.status(500).json({
         success: false,
         message: `Server error: ${error.message}`,
@@ -70,7 +168,7 @@ class SalesRFQController {
         RequiredByDate: req.body.RequiredByDate,
         DateReceived: req.body.DateReceived,
         ServiceTypeID: req.body.ServiceTypeID ? parseInt(req.body.ServiceTypeID) : null,
-        OriginWarehouseAddressID: req.body.OriginWarehouseAddressID ? parseInt(req.body.OriginWarehouseAddressID) : null, // Fixed field name
+        OriginWarehouseAddressID: req.body.OriginWarehouseAddressID ? parseInt(req.body.OriginWarehouseAddressID) : null,
         CollectionAddressID: req.body.CollectionAddressID ? parseInt(req.body.CollectionAddressID) : null,
         Status: req.body.Status,
         DestinationAddressID: req.body.DestinationAddressID ? parseInt(req.body.DestinationAddressID) : null,
@@ -83,8 +181,11 @@ class SalesRFQController {
         PackagingRequiredYN: req.body.PackagingRequiredYN != null ? Boolean(req.body.PackagingRequiredYN) : null,
         FormCompletedYN: req.body.FormCompletedYN != null ? Boolean(req.body.FormCompletedYN) : null,
         CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
+        CompanyName: req.body.CompanyName, // Add if available in request
+        City: req.body.City, // Add if available in request
       };
 
+      const pool = await poolPromise;
       const result = await SalesRFQModel.updateSalesRFQ(salesRFQData);
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error) {
@@ -117,6 +218,7 @@ class SalesRFQController {
         CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
       };
 
+      const pool = await poolPromise;
       const result = await SalesRFQModel.deleteSalesRFQ(salesRFQData);
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error) {
@@ -148,6 +250,7 @@ class SalesRFQController {
         SalesRFQID: salesRFQId,
       };
 
+      const pool = await poolPromise;
       const result = await SalesRFQModel.getSalesRFQ(salesRFQData);
       return res.status(result.success ? 200 : 404).json(result);
     } catch (error) {
@@ -171,7 +274,6 @@ class SalesRFQController {
         ToDate: req.query.toDate || null,
       };
 
-      // Validate pagination parameters
       if (paginationData.PageNumber < 1) {
         return res.status(400).json({
           success: false,
@@ -191,6 +293,7 @@ class SalesRFQController {
         });
       }
 
+      const pool = await poolPromise;
       const result = await SalesRFQModel.getAllSalesRFQs(paginationData);
       return res.status(result.success ? 200 : 400).json({
         ...result,
@@ -243,6 +346,7 @@ class SalesRFQController {
         ApproverID: parseInt(approverID),
       };
 
+      const pool = await poolPromise;
       const result = await SalesRFQModel.approveSalesRFQ(approvalData);
       return res.status(result.success ? (result.isFullyApproved ? 200 : 202) : 403).json(result);
     } catch (error) {
@@ -270,6 +374,7 @@ class SalesRFQController {
         });
       }
 
+      const pool = await poolPromise;
       const result = await SalesRFQModel.getSalesRFQApprovalStatus(salesRFQId);
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error) {

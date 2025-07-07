@@ -312,7 +312,7 @@ class PurchaseOrderModel {
       }
 
       // Record approval
-      const approvalInsertResult = await this.#insertPOApproval(connection, { POID: POID, ApproverID: appro5proverID });
+      const approvalInsertResult = await this.#insertPOApproval(connection, { POID: POID, ApproverID: approverID });
       if (!approvalInsertResult.success) {
         throw new Error(`Failed to insert approval record: ${approvalInsertResult.message}`);
       }
