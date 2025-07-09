@@ -8,14 +8,16 @@ const dbConfig = {
   host: '13.202.8.138',
   user: 'fleetmonkeys',
   password: 'Fleet_Monkey@Dnginc#21',
-  database: 'fleet_monkey_test',
+  database: 'fleet_monkey',
   port: 3306,
   connectionLimit: 50, // Increased for better concurrency
   queueLimit: 0,
   connectTimeout: 30000,
   waitForConnections: true,
-  multipleStatements: true
+  multipleStatements: true,
+
 };
+
 
 console.log('dbConfig:', dbConfig);
 
@@ -54,4 +56,4 @@ try {
   throw err;
 }
 
-module.exports = poolPromise;
+module.exports = poolPromise;module.exports = dbConfig;

@@ -64,6 +64,11 @@ const purchaseRFQToSupplierRoutes = require('./routes/purchaseRFQToSupplierRoute
 const inquiryTrackingRoutes = require('./routes/inquiryTrackingRoutes');
 const commentsRoutes = require('./routes/commentsRoutes');
 const tableCountsRoutes = require('./routes/tableCountsRoutes');
+const dashboardCountsRoutes = require('./routes/DashboardCountsRoutes');
+const exchangeRateRoutes = require('./routes/exchangeRateRoutes');
+const ExchangeRateService = require('./services/exchangeRateService');
+const ExchangeRateModel = require('./models/exchangeRateModel');
+
 
 const app = express();
 
@@ -137,6 +142,13 @@ async function startServer() {
     const pool = await poolPromise;
     console.log('Database pool initialized successfully');
 
+
+       // Initialize exchange rate table and fetch rates
+       await ExchangeRateModel.createTable();
+       await ExchangeRateService.fetchAndUpdateRates();
+       console.log('Exchange rate table initialized and rates updated');
+   
+
     // Mount routes with validation
     const routes = [
       ['/api/customers', customerRoutes],
@@ -200,7 +212,10 @@ async function startServer() {
       ['/api/purchaseRFQToSupplier', purchaseRFQToSupplierRoutes],
       ['/api/inquiryTracking', inquiryTrackingRoutes],
       ['/api/comments', commentsRoutes],
-      ['/api/tableCounts', tableCountsRoutes]
+      ['/api/tableCounts', tableCountsRoutes],
+      ['/api/dashboardCounts',dashboardCountsRoutes],
+      ['/api/exchange-rates', exchangeRateRoutes],
+
     ];
 
     routes.forEach(([path, route]) => {
