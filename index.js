@@ -67,8 +67,6 @@ const tableCountsRoutes = require('./routes/tableCountsRoutes');
 const dashboardCountsRoutes = require('./routes/DashboardCountsRoutes');
 const exchangeRateRoutes = require('./routes/exchangeRateRoutes');
 const ExchangeRateService = require('./services/exchangeRateService');
-const ExchangeRateModel = require('./models/exchangeRateModel');
-
 
 const app = express();
 
@@ -142,12 +140,14 @@ async function startServer() {
     const pool = await poolPromise;
     console.log('Database pool initialized successfully');
 
-
-       // Initialize exchange rate table and fetch rates
-       await ExchangeRateModel.createTable();
-       await ExchangeRateService.fetchAndUpdateRates();
-       console.log('Exchange rate table initialized and rates updated');
-   
+    // Fetch and update exchange rates (optional, can be triggered separately)
+    try {
+      await ExchangeRateService.fetchAndUpdateRates();
+      console.log('Exchange rates updated successfully');
+    } catch (err) {
+      console.error('Failed to update exchange rates during startup:', err.message);
+      // Continue server startup even if exchange rate update fails
+    }
 
     // Mount routes with validation
     const routes = [
@@ -213,9 +213,8 @@ async function startServer() {
       ['/api/inquiryTracking', inquiryTrackingRoutes],
       ['/api/comments', commentsRoutes],
       ['/api/tableCounts', tableCountsRoutes],
-      ['/api/dashboardCounts',dashboardCountsRoutes],
+      ['/api/dashboardCounts', dashboardCountsRoutes],
       ['/api/exchange-rates', exchangeRateRoutes],
-
     ];
 
     routes.forEach(([path, route]) => {
@@ -235,7 +234,6 @@ async function startServer() {
       });
     });
 
-    // dummy
     const PORT = process.env.PORT || 7001;
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
@@ -261,12 +259,10 @@ async function startServer() {
       }
     };
 
-    // Handle process signals
     ['SIGINT', 'SIGTERM'].forEach(signal => {
       process.on(signal, () => shutdown(signal));
     });
 
-    // Handle uncaught errors
     process.on('uncaughtException', (err) => {
       console.error('Uncaught Exception:', err);
       shutdown('uncaughtException');
