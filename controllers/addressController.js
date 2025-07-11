@@ -2,56 +2,56 @@ const AddressModel = require('../models/addressModel');
 
 class AddressController {
   // Get all Addresses with pagination
- static async getAllAddresses(req, res) {
-  try {
-    const { pageNumber, pageSize, fromDate, toDate } = req.query;
+  static async getAllAddresses(req, res) {
+    try {
+      const { pageNumber, pageSize, fromDate, toDate } = req.query;
 
-    // Validate query parameters
-    if (pageNumber && isNaN(parseInt(pageNumber))) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid pageNumber',
-        data: null,
-        addressId: null
-      });
-    }
-    if (pageSize && isNaN(parseInt(pageSize))) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid pageSize',
-        data: null,
-        addressId: null
-      });
-    }
-
-    const addresses = await AddressModel.getAllAddresses({
-      pageNumber: parseInt(pageNumber) || 1,
-      pageSize: parseInt(pageSize) || 10,
-      fromDate,
-      toDate
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Addresses retrieved successfully',
-      data: addresses.data,
-      pagination: {
-        totalRecords: addresses.totalRecords,
-        currentPage: addresses.currentPage,
-        pageSize: addresses.pageSize,
-        totalPages: addresses.totalPages
+      // Validate query parameters
+      if (pageNumber && (isNaN(parseInt(pageNumber)) || parseInt(pageNumber) < 1)) {
+        return res.status(400).json({
+          success: false,
+          message: 'pageNumber must be a positive integer',
+          data: null,
+          addressId: null
+        });
       }
-    });
-  } catch (err) {
-    console.error('getAllAddresses error:', err);
-    return res.status(500).json({
-      success: false,
-      message: `Server error: ${err.message}`,
-      data: null,
-      addressId: null
-    });
+      if (pageSize && (isNaN(parseInt(pageSize)) || parseInt(pageSize) < 1)) {
+        return res.status(400).json({
+          success: false,
+          message: 'pageSize must be a positive integer',
+          data: null,
+          addressId: null
+        });
+      }
+
+      const addresses = await AddressModel.getAllAddresses({
+        pageNumber: parseInt(pageNumber) || 1,
+        pageSize: parseInt(pageSize) || 10,
+        fromDate,
+        toDate
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Addresses retrieved successfully',
+        data: addresses.data,
+        pagination: {
+          totalRecords: addresses.totalRecords,
+          currentPage: addresses.currentPage,
+          pageSize: addresses.pageSize,
+          totalPages: addresses.totalPages
+        }
+      });
+    } catch (err) {
+      console.error('getAllAddresses error:', err);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${err.message}`,
+        data: null,
+        addressId: null
+      });
+    }
   }
-}
 
   // Create a new Address
   static async createAddress(req, res) {
@@ -75,11 +75,19 @@ class AddressController {
         createdById
       } = req.body;
 
-      // Basic validation
-      if (!createdById) {
+      // Validate required fields
+      if (!createdById || isNaN(parseInt(createdById))) {
         return res.status(400).json({
           success: false,
-          message: 'CreatedByID is required',
+          message: 'Valid createdById is required',
+          data: null,
+          addressId: null
+        });
+      }
+      if (!addressLine1) {
+        return res.status(400).json({
+          success: false,
+          message: 'addressLine1 is required',
           data: null,
           addressId: null
         });
@@ -101,7 +109,7 @@ class AddressController {
         longitude,
         latitude,
         disabled,
-        createdById
+        createdById: parseInt(createdById)
       });
 
       return res.status(201).json({
@@ -126,7 +134,8 @@ class AddressController {
     try {
       const { id } = req.params;
 
-      if (!id || isNaN(id)) {
+      // Validate ID
+      if (!id || isNaN(parseInt(id)) || parseInt(id) <= 0) {
         return res.status(400).json({
           success: false,
           message: 'Valid AddressID is required',
@@ -137,28 +146,19 @@ class AddressController {
 
       const address = await AddressModel.getAddressById(parseInt(id));
 
-      if (!address) {
-        return res.status(404).json({
-          success: false,
-          message: 'Address not found',
-          data: null,
-          addressId: id
-        });
-      }
-
       return res.status(200).json({
         success: true,
         message: 'Address retrieved successfully',
         data: address,
-        addressId: id
+        addressId: parseInt(id)
       });
     } catch (err) {
       console.error('getAddressById error:', err);
-      return res.status(500).json({
+      return res.status(err.message.includes('not found') ? 404 : 500).json({
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        addressId: null
+        addressId: parseInt(id) || null
       });
     }
   }
@@ -186,7 +186,8 @@ class AddressController {
         createdById
       } = req.body;
 
-      if (!id || isNaN(id)) {
+      // Validate required fields
+      if (!id || isNaN(parseInt(id)) || parseInt(id) <= 0) {
         return res.status(400).json({
           success: false,
           message: 'Valid AddressID is required',
@@ -194,13 +195,20 @@ class AddressController {
           addressId: null
         });
       }
-
-      if (!createdById) {
+      if (!createdById || isNaN(parseInt(createdById))) {
         return res.status(400).json({
           success: false,
-          message: 'CreatedByID is required',
+          message: 'Valid createdById is required',
           data: null,
-          addressId: id
+          addressId: parseInt(id)
+        });
+      }
+      if (!addressLine1) {
+        return res.status(400).json({
+          success: false,
+          message: 'addressLine1 is required',
+          data: null,
+          addressId: parseInt(id)
         });
       }
 
@@ -220,22 +228,22 @@ class AddressController {
         longitude,
         latitude,
         disabled,
-        createdById
+        createdById: parseInt(createdById)
       });
 
       return res.status(200).json({
         success: true,
         message: result.message,
         data: null,
-        addressId: id
+        addressId: parseInt(id)
       });
     } catch (err) {
       console.error('updateAddress error:', err);
-      return res.status(500).json({
+      return res.status(err.message.includes('not found') ? 404 : 500).json({
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        addressId: null
+        addressId: parseInt(id) || null
       });
     }
   }
@@ -246,7 +254,8 @@ class AddressController {
       const { id } = req.params;
       const { createdById } = req.body;
 
-      if (!id || isNaN(id)) {
+      // Validate required fields
+      if (!id || isNaN(parseInt(id)) || parseInt(id) <= 0) {
         return res.status(400).json({
           success: false,
           message: 'Valid AddressID is required',
@@ -254,22 +263,30 @@ class AddressController {
           addressId: null
         });
       }
+      if (!createdById || isNaN(parseInt(createdById))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Valid createdById is required',
+          data: null,
+          addressId: parseInt(id)
+        });
+      }
 
-      const result = await AddressModel.deleteAddress(parseInt(id), createdById);
+      const result = await AddressModel.deleteAddress(parseInt(id), parseInt(createdById));
 
       return res.status(200).json({
         success: true,
         message: result.message,
         data: null,
-        addressId: id
+        addressId: parseInt(id)
       });
     } catch (err) {
       console.error('deleteAddress error:', err);
-      return res.status(500).json({
+      return res.status(err.message.includes('not found') ? 404 : 500).json({
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        addressId: null
+        addressId: parseInt(id) || null
       });
     }
   }
