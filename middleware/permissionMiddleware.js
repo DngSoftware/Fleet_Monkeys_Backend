@@ -1,7 +1,10 @@
-const poolPromise = require("../config/db.config");
+const { poolPromise } = require("../config/db.config");
 
 // Helper function to normalize a string (remove spaces, special characters, and convert to lowercase)
 const normalizeString = (str) => {
+  if (!str || typeof str !== 'string') {
+    return null; // Return null if str is null, undefined, or not a string
+  }
   let normalized = str.toLowerCase().replace(/[\s\-=]+/g, "");
   // Special case for rolepermissions
   if (normalized === "rolepermissions") {
@@ -29,22 +32,25 @@ const permissionMiddleware = (requiredPermission) => {
 
       // Extract resource name from the route path (e.g., "/api/salesrfq" -> "salesrfq")
       let resourceName = req.baseUrl.split("/").pop();
-      if (!resourceName) {
+      if (!resourceName || resourceName === 'api') {
+        // Fallback to route path or a default resource name
+        resourceName = req.path.split("/")[1] || "unknown";
+        console.warn(`Invalid resourceName from req.baseUrl, using fallback: ${resourceName}`);
+      }
+
+      // Normalize the resource name
+      const normalizedResourceName = normalizeString(resourceName);
+      if (!normalizedResourceName) {
         return res.status(400).json({
           success: false,
-          message: "Unable to determine resource name from route",
+          message: `Unable to determine resource name from route: ${req.baseUrl}`,
           data: null,
           salesRFQId: null,
           newSalesRFQId: null,
         });
       }
 
-      // Normalize the resource name
-      const normalizedResourceName = normalizeString(resourceName);
-      console.log(
-        "Normalized resource name from route:",
-        normalizedResourceName
-      ); // For debugging
+      console.log("Normalized resource name from route:", normalizedResourceName); // For debugging
 
       // Check if accessibleTables is populated by tableAccessMiddleware
       if (req.user.accessibleTables) {
@@ -188,7 +194,10 @@ const permissionMiddleware = (requiredPermission) => {
 
       next();
     } catch (error) {
-      console.error("Permission check error:", error);
+      console.error("Permission check error:", {
+        message: error.message,
+        stack: error.stack
+      });
       return res.status(500).json({
         success: false,
         message: `Server error: ${error.message}`,
