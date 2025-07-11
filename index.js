@@ -66,6 +66,8 @@ const inquiryTrackingRoutes = require('./routes/inquiryTrackingRoutes');
 const commentsRoutes = require('./routes/commentsRoutes');
 const tableCountsRoutes = require('./routes/tableCountsRoutes');
 const customerAddressRoutes = require('./routes/customerAddressRoutes');
+const supplierAddressRoutes = require('./routes/supplierAddressRoutes');
+
 
 const app = express();
 
@@ -204,7 +206,8 @@ async function startServer() {
       ['/api/inquiryTracking', inquiryTrackingRoutes],
       ['/api/comments', commentsRoutes],
       ['/api/tableCounts', tableCountsRoutes],
-      ['/api/customerAddress', customerAddressRoutes]
+      ['/api/customerAddress', customerAddressRoutes],
+      ['/api/supplierAddress', supplierAddressRoutes]
     ];
 
     routes.forEach(([path, route]) => {
