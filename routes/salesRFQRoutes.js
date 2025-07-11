@@ -26,4 +26,6 @@ router.post('/approve', authMiddleware, SalesRFQController.approveSalesRFQ);
 // Get SalesRFQ approval status (requires read permission on SalesRFQ table)
 router.get('/:id/approval-status', authMiddleware, tableAccessMiddleware, permissionMiddleware('read'), SalesRFQController.getSalesRFQApprovalStatus);
 
+router.post('/:salesRFQId/send-email', SalesRFQController.sendSalesRFQEmail);
+
 module.exports = router; 

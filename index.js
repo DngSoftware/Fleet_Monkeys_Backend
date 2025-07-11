@@ -60,6 +60,7 @@ const pInvoiceApprovalRoutes = require('./routes/pInvoiceApprovalRoutes');
 const salesInvoiceRoutes = require('./routes/salesInvoiceRoutes');
 const salesInvoiceApprovalRoutes = require('./routes/salesInvoiceApprovalRoutes');
 const salesInvoiceParcelRoutes = require('./routes/salesInvoiceParcelRoutes');
+const salesInvoiceEmailRoutes = require('./routes/salesInvoiceEmailRoutes');
 const purchaseRFQToSupplierRoutes = require('./routes/purchaseRFQToSupplierRoutes');
 const inquiryTrackingRoutes = require('./routes/inquiryTrackingRoutes');
 const commentsRoutes = require('./routes/commentsRoutes');
@@ -67,6 +68,7 @@ const tableCountsRoutes = require('./routes/tableCountsRoutes');
 const dashboardCountsRoutes = require('./routes/DashboardCountsRoutes');
 const exchangeRateRoutes = require('./routes/exchangeRateRoutes');
 const ExchangeRateService = require('./services/exchangeRateService');
+const customerAddressRoutes = require('./routes/customerAddressRoutes');
 
 const app = express();
 
@@ -207,6 +209,7 @@ async function startServer() {
       ['/api/salesInvoice', salesInvoiceRoutes],
       ['/api/salesInvoiceApproval', salesInvoiceApprovalRoutes],
       ['/api/salesInvoiceParcel', salesInvoiceParcelRoutes],
+      ['/api/salesInvoiceEmail', salesInvoiceEmailRoutes],
       ['/api/lowestItemPrice', lowestItemPriceRoutes],
       ['/api/tableAccess', tableAccessRoutes],
       ['/api/purchaseRFQToSupplier', purchaseRFQToSupplierRoutes],
@@ -215,6 +218,7 @@ async function startServer() {
       ['/api/tableCounts', tableCountsRoutes],
       ['/api/dashboardCounts', dashboardCountsRoutes],
       ['/api/exchange-rates', exchangeRateRoutes],
+      ['/api/customerAddress', customerAddressRoutes]
     ];
 
     routes.forEach(([path, route]) => {
@@ -234,7 +238,8 @@ async function startServer() {
       });
     });
 
-    const PORT = process.env.PORT || 7001;
+    // dummy
+    const PORT = process.env.PORT || 7000;
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
     });

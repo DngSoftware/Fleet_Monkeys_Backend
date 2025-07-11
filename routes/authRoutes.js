@@ -16,6 +16,9 @@ router.post('/create-person', authMiddleware, AuthController.createPerson);
 // Login
 router.post('/login', AuthController.login);
 
+// Update user profile (requires authentication)
+router.put('/update-profile', authMiddleware, AuthController.updateProfile);
+
 // Logout (requires authentication)
 router.post('/logout', authMiddleware, AuthController.logout);
 
