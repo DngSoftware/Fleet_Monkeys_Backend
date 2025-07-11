@@ -69,6 +69,8 @@ const dashboardCountsRoutes = require('./routes/DashboardCountsRoutes');
 const exchangeRateRoutes = require('./routes/exchangeRateRoutes');
 const ExchangeRateService = require('./services/exchangeRateService');
 const customerAddressRoutes = require('./routes/customerAddressRoutes');
+const supplierAddressRoutes = require('./routes/supplierAddressRoutes');
+
 
 const app = express();
 
@@ -218,7 +220,8 @@ async function startServer() {
       ['/api/tableCounts', tableCountsRoutes],
       ['/api/dashboardCounts', dashboardCountsRoutes],
       ['/api/exchange-rates', exchangeRateRoutes],
-      ['/api/customerAddress', customerAddressRoutes]
+      ['/api/customerAddress', customerAddressRoutes],
+      ['/api/supplierAddress', supplierAddressRoutes]
     ];
 
     routes.forEach(([path, route]) => {
