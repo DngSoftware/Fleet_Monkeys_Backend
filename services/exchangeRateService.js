@@ -1,15 +1,17 @@
 const axios = require('axios');
 const ExchangeRateModel = require('../models/exchangeRateModel');
 
+// Define API key as a constant
+const EXCHANGE_RATE_API_KEY = '77b2916030994a174c4e1a60'; // Replace with your actual API key
+
 class ExchangeRateService {
   async fetchAndUpdateRates() {
     try {
-      const apiKey = process.env.EXCHANGE_RATE_API_KEY;
-      if (!apiKey) {
-        throw new Error('EXCHANGE_RATE_API_KEY is not defined in environment variables');
+      if (!EXCHANGE_RATE_API_KEY) {
+        throw new Error('EXCHANGE_RATE_API_KEY is not defined');
       }
 
-      const response = await axios.get(`https://v6.exchangerate-api.com/v6/${apiKey}/latest/USD`);
+      const response = await axios.get(`https://v6.exchangerate-api.com/v6/${EXCHANGE_RATE_API_KEY}/latest/USD`);
       console.log('API Response:', response.data);
 
       if (!response.data || !response.data.conversion_rates) {
