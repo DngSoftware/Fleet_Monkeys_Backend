@@ -10,8 +10,7 @@ class RolePermissionController {
         AllowWrite: req.body.AllowWrite != null ? Boolean(req.body.AllowWrite) : null,
         AllowUpdate: req.body.AllowUpdate != null ? Boolean(req.body.AllowUpdate) : null,
         AllowDelete: req.body.AllowDelete != null ? Boolean(req.body.AllowDelete) : null,
-        PersonID: req.body.PersonID ? parseInt(req.body.PersonID) : null,
-        IsMaster: req.body.IsMaster != null ? Boolean(req.body.IsMaster) : null
+        PersonID: req.body.PersonID ? parseInt(req.body.PersonID) : null
       };
 
       const result = await RolePermissionModel.createRolePermission(rolePermissionData);
@@ -23,6 +22,41 @@ class RolePermissionController {
         message: `Server error: ${error.message}`,
         data: null,
         permissionRoleId: null
+      });
+    }
+  }
+
+  static async createBulkRolePermissions(req, res) {
+    try {
+      const rolePermissionsArray = req.body;
+      if (!Array.isArray(rolePermissionsArray)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Request body must be an array of role permission objects',
+          data: null,
+          permissionRoleIds: []
+        });
+      }
+
+      const processedPermissions = rolePermissionsArray.map(permission => ({
+        PermissionID: permission.PermissionID ? parseInt(permission.PermissionID) : null,
+        RoleID: permission.RoleID ? parseInt(permission.RoleID) : null,
+        AllowRead: permission.AllowRead != null ? Boolean(permission.AllowRead) : null,
+        AllowWrite: permission.AllowWrite != null ? Boolean(permission.AllowWrite) : null,
+        AllowUpdate: permission.AllowUpdate != null ? Boolean(permission.AllowUpdate) : null,
+        AllowDelete: permission.AllowDelete != null ? Boolean(permission.AllowDelete) : null,
+        PersonID: permission.PersonID ? parseInt(permission.PersonID) : null
+      }));
+
+      const result = await RolePermissionModel.createBulkRolePermissions(processedPermissions);
+      return res.status(result.success ? 201 : 400).json(result);
+    } catch (error) {
+      console.error('Create Bulk RolePermissions error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        permissionRoleIds: []
       });
     }
   }
@@ -47,8 +81,7 @@ class RolePermissionController {
         AllowWrite: req.body.AllowWrite != null ? Boolean(req.body.AllowWrite) : null,
         AllowUpdate: req.body.AllowUpdate != null ? Boolean(req.body.AllowUpdate) : null,
         AllowDelete: req.body.AllowDelete != null ? Boolean(req.body.AllowDelete) : null,
-        PersonID: req.body.PersonID ? parseInt(req.body.PersonID) : null,
-        IsMaster: req.body.IsMaster != null ? Boolean(req.body.IsMaster) : null
+        PersonID: req.body.PersonID ? parseInt(req.body.PersonID) : null
       };
 
       const result = await RolePermissionModel.updateRolePermission(rolePermissionData);

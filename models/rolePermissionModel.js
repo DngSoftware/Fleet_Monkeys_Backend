@@ -3,29 +3,32 @@ const poolPromise = require('../config/db.config');
 class RolePermissionModel {
   static async #validateForeignKeys(rolePermissionData, action) {
     const pool = await poolPromise;
+    if (!pool || typeof pool.query !== 'function') {
+      throw new Error('Database pool is not initialized');
+    }
     const errors = [];
 
     if (action === 'INSERT' || action === 'UPDATE') {
       if (rolePermissionData.PermissionID) {
         const [permissionCheck] = await pool.query(
-          'SELECT 1 FROM dbo_tblpermission WHERE PermissionID = ? AND IsDeleted = 0',
+          'SELECT 1 FROM dbo_tblpermission WHERE PermissionID = ?',
           [parseInt(rolePermissionData.PermissionID)]
         );
-        if (permissionCheck.length === 0) errors.push(`PermissionID ${rolePermissionData.PermissionID} does not exist or is deleted`);
+        if (permissionCheck.length === 0) errors.push(`PermissionID ${rolePermissionData.PermissionID} does not exist`);
       }
       if (rolePermissionData.RoleID) {
         const [roleCheck] = await pool.query(
-          'SELECT 1 FROM dbo_tblroles WHERE RoleID = ? AND IsDeleted = 0',
+          'SELECT 1 FROM dbo_tblroles WHERE RoleID = ?',
           [parseInt(rolePermissionData.RoleID)]
         );
-        if (roleCheck.length === 0) errors.push(`RoleID ${rolePermissionData.RoleID} does not exist or is deleted`);
+        if (roleCheck.length === 0) errors.push(`RoleID ${rolePermissionData.RoleID} does not exist`);
       }
       if (rolePermissionData.PersonID) {
         const [personCheck] = await pool.query(
-          'SELECT 1 FROM dbo_tblperson WHERE PersonID = ? AND IsDeleted = 0',
+          'SELECT 1 FROM dbo_tblperson WHERE PersonID = ?',
           [parseInt(rolePermissionData.PersonID)]
         );
-        if (personCheck.length === 0) errors.push(`PersonID ${rolePermissionData.PersonID} does not exist or is deleted`);
+        if (personCheck.length === 0) errors.push(`PersonID ${rolePermissionData.PersonID} does not exist`);
       }
     }
 
@@ -56,10 +59,13 @@ class RolePermissionModel {
 
     try {
       const pool = await poolPromise;
+      if (!pool || typeof pool.query !== 'function') {
+        throw new Error('Database pool is not initialized');
+      }
       const query = `
         INSERT INTO dbo_tblrolepermission (
-          PermissionID, RoleID, AllowRead, AllowWrite, AllowUpdate, AllowDelete, PersonID, IsMaster
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          PermissionID, RoleID, AllowRead, AllowWrite, AllowUpdate, AllowDelete, PersonID
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `;
       const params = [
         parseInt(rolePermissionData.PermissionID),
@@ -68,8 +74,7 @@ class RolePermissionModel {
         rolePermissionData.AllowWrite != null ? Boolean(rolePermissionData.AllowWrite) : null,
         rolePermissionData.AllowUpdate != null ? Boolean(rolePermissionData.AllowUpdate) : null,
         rolePermissionData.AllowDelete != null ? Boolean(rolePermissionData.AllowDelete) : null,
-        parseInt(rolePermissionData.PersonID) || null,
-        rolePermissionData.IsMaster != null ? Boolean(rolePermissionData.IsMaster) : null
+        parseInt(rolePermissionData.PersonID) || null
       ];
 
       const [result] = await pool.query(query, params);
@@ -86,6 +91,91 @@ class RolePermissionModel {
         message: `Database error: ${error.message || 'Unknown error'}`,
         data: null,
         permissionRoleId: null
+      };
+    }
+  }
+
+  static async createBulkRolePermissions(rolePermissionsArray) {
+    if (!Array.isArray(rolePermissionsArray) || rolePermissionsArray.length === 0) {
+      return {
+        success: false,
+        message: 'Input must be a non-empty array of role permission objects',
+        data: null,
+        permissionRoleIds: []
+      };
+    }
+
+    const requiredFields = ['PermissionID', 'RoleID'];
+    const results = [];
+    const permissionRoleIds = [];
+    const pool = await poolPromise;
+    if (!pool || typeof pool.query !== 'function') {
+      throw new Error('Database pool is not initialized');
+    }
+
+    try {
+      await pool.query('START TRANSACTION');
+
+      for (const rolePermissionData of rolePermissionsArray) {
+        const missingFields = requiredFields.filter(field => !rolePermissionData[field]);
+        if (missingFields.length > 0) {
+          results.push({
+            success: false,
+            message: `${missingFields.join(', ')} are required`,
+            permissionRoleId: null
+          });
+          continue;
+        }
+
+        const fkErrors = await this.#validateForeignKeys(rolePermissionData, 'INSERT');
+        if (fkErrors) {
+          results.push({
+            success: false,
+            message: `Validation failed: ${fkErrors}`,
+            permissionRoleId: null
+          });
+          continue;
+        }
+
+        const query = `
+          INSERT INTO dbo_tblrolepermission (
+            PermissionID, RoleID, AllowRead, AllowWrite, AllowUpdate, AllowDelete, PersonID
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `;
+        const params = [
+          parseInt(rolePermissionData.PermissionID),
+          parseInt(rolePermissionData.RoleID),
+          rolePermissionData.AllowRead != null ? Boolean(rolePermissionData.AllowRead) : null,
+          rolePermissionData.AllowWrite != null ? Boolean(rolePermissionData.AllowWrite) : null,
+          rolePermissionData.AllowUpdate != null ? Boolean(rolePermissionData.AllowUpdate) : null,
+          rolePermissionData.AllowDelete != null ? Boolean(rolePermissionData.AllowDelete) : null,
+          parseInt(rolePermissionData.PersonID) || null
+        ];
+
+        const [result] = await pool.query(query, params);
+        permissionRoleIds.push(result.insertId);
+        results.push({
+          success: true,
+          message: 'RolePermission created successfully',
+          permissionRoleId: result.insertId
+        });
+      }
+
+      await pool.query('COMMIT');
+      return {
+        success: true,
+        message: 'Bulk RolePermissions processed',
+        data: results,
+        permissionRoleIds
+      };
+    } catch (error) {
+      await pool.query('ROLLBACK');
+      console.error('Database error in BULK INSERT operation:', error);
+      return {
+        success: false,
+        message: `Database error: ${error.message || 'Unknown error'}`,
+        data: null,
+        permissionRoleIds: []
       };
     }
   }
@@ -112,6 +202,9 @@ class RolePermissionModel {
 
     try {
       const pool = await poolPromise;
+      if (!pool || typeof pool.query !== 'function') {
+        throw new Error('Database pool is not initialized');
+      }
       const query = `
         UPDATE dbo_tblrolepermission
         SET
@@ -121,9 +214,8 @@ class RolePermissionModel {
           AllowWrite = ?,
           AllowUpdate = ?,
           AllowDelete = ?,
-          PersonID = ?,
-          IsMaster = ?
-        WHERE PermissionRoleID = ? AND IsDeleted = 0
+          PersonID = ?
+        WHERE PermissionRoleID = ?
       `;
       const params = [
         parseInt(rolePermissionData.PermissionID) || null,
@@ -133,7 +225,6 @@ class RolePermissionModel {
         rolePermissionData.AllowUpdate != null ? Boolean(rolePermissionData.AllowUpdate) : null,
         rolePermissionData.AllowDelete != null ? Boolean(rolePermissionData.AllowDelete) : null,
         parseInt(rolePermissionData.PersonID) || null,
-        rolePermissionData.IsMaster != null ? Boolean(rolePermissionData.IsMaster) : null,
         parseInt(rolePermissionData.PermissionRoleID)
       ];
 
@@ -141,7 +232,7 @@ class RolePermissionModel {
       if (result.affectedRows === 0) {
         return {
           success: false,
-          message: 'RolePermission not found or already deleted',
+          message: 'RolePermission not found',
           data: null,
           permissionRoleId: rolePermissionData.PermissionRoleID
         };
@@ -176,10 +267,12 @@ class RolePermissionModel {
 
     try {
       const pool = await poolPromise;
+      if (!pool || typeof pool.query !== 'function') {
+        throw new Error('Database pool is not initialized');
+      }
       const query = `
-        UPDATE dbo_tblrolepermission
-        SET IsDeleted = 1, DeletedDateTime = NOW()
-        WHERE PermissionRoleID = ? AND IsDeleted = 0
+        DELETE FROM dbo_tblrolepermission
+        WHERE PermissionRoleID = ?
       `;
       const params = [
         parseInt(rolePermissionData.PermissionRoleID)
@@ -189,7 +282,7 @@ class RolePermissionModel {
       if (result.affectedRows === 0) {
         return {
           success: false,
-          message: 'RolePermission not found or already deleted',
+          message: 'RolePermission not found',
           data: null,
           permissionRoleId: rolePermissionData.PermissionRoleID
         };
@@ -224,13 +317,16 @@ class RolePermissionModel {
 
     try {
       const pool = await poolPromise;
+      if (!pool || typeof pool.query !== 'function') {
+        throw new Error('Database pool is not initialized');
+      }
       const query = `
-        SELECT rp.*, p.TablePermission, r.RoleName,
+        SELECT rp.*, p.TablePermission, p.IsMaster, r.RoleName,
                CONCAT(pers.FirstName, ' ', COALESCE(pers.MiddleName, ''), ' ', pers.LastName) AS PersonName
         FROM dbo_tblrolepermission rp
-        LEFT JOIN dbo_tblpermission p ON rp.PermissionID = p.PermissionID AND p.IsDeleted = 0
-        LEFT JOIN dbo_tblroles r ON rp.RoleID = r.RoleID AND r.IsDeleted = 0
-        LEFT JOIN dbo_tblperson pers ON rp.PersonID = pers.PersonID AND pers.IsDeleted = 0
+        LEFT JOIN dbo_tblpermission p ON rp.PermissionID = p.PermissionID
+        LEFT JOIN dbo_tblroles r ON rp.RoleID = r.RoleID
+        LEFT JOIN dbo_tblperson pers ON rp.PersonID = pers.PersonID
         WHERE rp.PermissionRoleID = ?
       `;
       const [result] = await pool.query(query, [parseInt(rolePermissionData.PermissionRoleID)]);
@@ -238,7 +334,7 @@ class RolePermissionModel {
       if (result.length === 0) {
         return {
           success: false,
-          message: 'RolePermission not found or deleted',
+          message: 'RolePermission not found',
           data: null,
           permissionRoleId: rolePermissionData.PermissionRoleID
         };
@@ -264,17 +360,20 @@ class RolePermissionModel {
   static async getAllRolePermissions(paginationData) {
     try {
       const pool = await poolPromise;
+      if (!pool || typeof pool.query !== 'function') {
+        throw new Error('Database pool is not initialized');
+      }
       const pageNumber = parseInt(paginationData.PageNumber) || 1;
       const pageSize = parseInt(paginationData.PageSize) || 10;
       const offset = (pageNumber - 1) * pageSize;
 
       const query = `
-        SELECT rp.*, p.TablePermission, r.RoleName,
+        SELECT rp.*, p.TablePermission, p.IsMaster, r.RoleName,
                CONCAT(pers.FirstName, ' ', COALESCE(pers.MiddleName, ''), ' ', pers.LastName) AS PersonName
         FROM dbo_tblrolepermission rp
-        LEFT JOIN dbo_tblpermission p ON rp.PermissionID = p.PermissionID AND p.IsDeleted = 0
-        LEFT JOIN dbo_tblroles r ON rp.RoleID = r.RoleID AND r.IsDeleted = 0
-        LEFT JOIN dbo_tblperson pers ON rp.PersonID = pers.PersonID AND pers.IsDeleted = 0
+        LEFT JOIN dbo_tblpermission p ON rp.PermissionID = p.PermissionID
+        LEFT JOIN dbo_tblroles r ON rp.RoleID = r.RoleID
+        LEFT JOIN dbo_tblperson pers ON rp.PersonID = pers.PersonID
         LIMIT ? OFFSET ?
       `;
       const countQuery = `
