@@ -66,10 +66,11 @@ const inquiryTrackingRoutes = require('./routes/inquiryTrackingRoutes');
 const commentsRoutes = require('./routes/commentsRoutes');
 const tableCountsRoutes = require('./routes/tableCountsRoutes');
 const dashboardCountsRoutes = require('./routes/DashboardCountsRoutes');
-const exchangeRateRoutes = require('./routes/exchangeRateRoutes');
-const ExchangeRateService = require('./services/exchangeRateService');
+// const exchangeRateRoutes = require('./routes/exchangeRateRoutes');
+// const ExchangeRateService = require('./services/exchangeRateService');
 const customerAddressRoutes = require('./routes/customerAddressRoutes');
 const supplierAddressRoutes = require('./routes/supplierAddressRoutes');
+const ShippingParcelRoutes = require('./routes/ShippingParcelRoutes');
 
 
 const app = express();
@@ -144,14 +145,14 @@ async function startServer() {
     const pool = await poolPromise;
     console.log('Database pool initialized successfully');
 
-    // Fetch and update exchange rates (optional, can be triggered separately)
-    try {
-      await ExchangeRateService.fetchAndUpdateRates();
-      console.log('Exchange rates updated successfully');
-    } catch (err) {
-      console.error('Failed to update exchange rates during startup:', err.message);
-      // Continue server startup even if exchange rate update fails
-    }
+    // // Fetch and update exchange rates (optional, can be triggered separately)
+    // try {
+    //   await ExchangeRateService.fetchAndUpdateRates();
+    //   console.log('Exchange rates updated successfully');
+    // } catch (err) {
+    //   console.error('Failed to update exchange rates during startup:', err.message);
+    //   // Continue server startup even if exchange rate update fails
+    // }
 
     // Mount routes with validation
     const routes = [
@@ -219,9 +220,10 @@ async function startServer() {
       ['/api/comments', commentsRoutes],
       ['/api/tableCounts', tableCountsRoutes],
       ['/api/dashboardCounts', dashboardCountsRoutes],
-      ['/api/exchange-rates', exchangeRateRoutes],
+      // ['/api/exchange-rates', exchangeRateRoutes],
       ['/api/customerAddress', customerAddressRoutes],
-      ['/api/supplierAddress', supplierAddressRoutes]
+      ['/api/supplierAddress', supplierAddressRoutes],
+      ['/api/ShippingParcel', ShippingParcelRoutes]
     ];
 
     routes.forEach(([path, route]) => {
