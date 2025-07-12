@@ -13,12 +13,28 @@ router.post('/',
   CommentsController.createComment
 );
 
-// Get all comments for a ReferenceTable and ReferenceID (requires read permission on Comments)
-router.get('/:referenceTable/:referenceID', 
+// Update a comment (requires write permission on Comments and ownership)
+router.put('/:userCommentID', 
+  authMiddleware, 
+  tableAccessMiddleware, 
+  permissionMiddleware('update'), 
+  CommentsController.updateComment
+);
+
+// Get all comments for a SalesRFQID across all stages (requires read permission on Comments)
+router.get('/salesrfq/:salesRFQID', 
   authMiddleware, 
   tableAccessMiddleware, 
   permissionMiddleware('read'), 
-  CommentsController.getCommentsByReference
+  CommentsController.getCommentsBySalesRFQID
+);
+
+// Get all comments for a specific stage and SalesRFQID (requires read permission on Comments)
+router.get('/:stage/:salesRFQID', 
+  authMiddleware, 
+  tableAccessMiddleware, 
+  permissionMiddleware('read'), 
+  CommentsController.getCommentsByStage
 );
 
 module.exports = router;

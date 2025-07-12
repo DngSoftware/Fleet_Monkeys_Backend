@@ -2,20 +2,31 @@ const express = require('express');
 const router = express.Router();
 const ShippingParcelController = require('../controllers/ShippingParcelController');
 const authMiddleware = require('../middleware/authMiddleware');
+// const tableAccessMiddleware = require('../middleware/tableAccessMiddleware');
+// const permissionMiddleware = require('../middleware/permissionMiddleware');
 
-// Get Shipping Parcels (all or by ParcelID)
-router.get('/', authMiddleware, ShippingParcelController.getShippingParcels);
+// Create a new parcel (requires write permission on ShippingParcel)
+router.post('/', 
+  authMiddleware, 
+  ShippingParcelController.createParcel
+);
 
-// Get a specific Shipping Parcel by ParcelID
-router.get('/:parcelID', authMiddleware, ShippingParcelController.getShippingParcelById);
+// Update a parcel (requires write permission on ShippingParcel and ownership)
+router.put('/:parcelID', 
+  authMiddleware,
+  ShippingParcelController.updateParcel
+);
 
-// Create a Shipping Parcel
-router.post('/', authMiddleware, ShippingParcelController.createShippingParcel);
+// Get a parcel or all parcels (requires read permission on ShippingParcel)
+router.get('/:parcelID?', 
+  authMiddleware,
+  ShippingParcelController.getParcel
+);
 
-// Update a Shipping Parcel
-router.put('/', authMiddleware, ShippingParcelController.updateShippingParcel);
-
-// Delete a Shipping Parcel
-router.delete('/', authMiddleware, ShippingParcelController.deleteShippingParcel);
+// Delete a parcel (requires write permission on ShippingParcel and ownership)
+router.delete('/:parcelID', 
+  authMiddleware, 
+  ShippingParcelController.deleteParcel
+);
 
 module.exports = router;

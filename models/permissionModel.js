@@ -67,13 +67,14 @@ class PermissionModel {
         'INSERT',
         null, // p_PermissionID
         data.tablePermission,
+        data.isMaster,
         data.createdById,
         null // p_DeletedByID
       ];
 
       // Call SP_ManagePermission
       await pool.query(
-        'CALL SP_ManagePermission(?, ?, ?, ?, ?, @p_Result, @p_Message)',
+        'CALL SP_ManagePermission(?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
@@ -131,12 +132,13 @@ class PermissionModel {
         id,
         data.tablePermission || null,
         data.createdById,
+        data.isMaster,
         null // p_DeletedByID
       ];
 
       // Call SP_ManagePermission
       await pool.query(
-        'CALL SP_ManagePermission(?, ?, ?, ?, ?, @p_Result, @p_Message)',
+        'CALL SP_ManagePermission(?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
@@ -166,13 +168,14 @@ class PermissionModel {
         'DELETE',
         id,
         null, // p_PermissionName
+        null,
         null, // p_CreatedByID
         deletedById || null // p_DeletedByID
       ];
 
       // Call SP_ManagePermission
       await pool.query(
-        'CALL SP_ManagePermission(?, ?, ?, ?, ?, @p_Result, @p_Message)',
+        'CALL SP_ManagePermission(?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 

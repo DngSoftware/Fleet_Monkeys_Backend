@@ -1,14 +1,15 @@
-const { poolPromise } = require("../config/db.config");
+const poolPromise = require('../config/db.config');
 
-// Helper function to normalize a string (remove spaces, special characters, and convert to lowercase)
 const normalizeString = (str) => {
   if (!str || typeof str !== 'string') {
-    return null; // Return null if str is null, undefined, or not a string
+    return null;
   }
-  let normalized = str.toLowerCase().replace(/[\s\-=]+/g, "");
-  // Special case for rolepermissions
-  if (normalized === "rolepermissions") {
-    normalized = "rolepermission"; // Match dbo_tblpermission TablePermission value
+  let normalized = str.toLowerCase().replace(/[\s\-=]+/g, '');
+  if (normalized === 'rolepermissions') {
+    normalized = 'rolepermission';
+  }
+  if (normalized === 'tableaccess') {
+    normalized = 'tableaccess';
   }
   return normalized;
 };
@@ -19,42 +20,35 @@ const permissionMiddleware = (requiredPermission) => {
       if (!req.user || !req.user.personId || !req.user.roleId) {
         return res.status(401).json({
           success: false,
-          message: "Authentication required or user data missing",
+          message: 'Authentication required or user data missing',
           data: null,
-          salesRFQId: null,
-          newSalesRFQId: null,
+          permissionRoleId: null
         });
       }
 
       const roleId = parseInt(req.user.roleId);
       const personId = parseInt(req.user.personId);
-      const roleName = req.user.role || "";
+      const roleName = req.user.role || '';
 
-      // Extract resource name from the route path (e.g., "/api/salesrfq" -> "salesrfq")
-      let resourceName = req.baseUrl.split("/").pop();
+      let resourceName = req.baseUrl.split('/').pop();
       if (!resourceName || resourceName === 'api') {
-        // Fallback to route path or a default resource name
-        resourceName = req.path.split("/")[1] || "unknown";
+        resourceName = req.path.split('/')[1] || 'unknown';
         console.warn(`Invalid resourceName from req.baseUrl, using fallback: ${resourceName}`);
       }
 
-      // Normalize the resource name
       const normalizedResourceName = normalizeString(resourceName);
       if (!normalizedResourceName) {
         return res.status(400).json({
           success: false,
           message: `Unable to determine resource name from route: ${req.baseUrl}`,
           data: null,
-          salesRFQId: null,
-          newSalesRFQId: null,
+          permissionRoleId: null
         });
       }
 
-      console.log("Normalized resource name from route:", normalizedResourceName); // For debugging
+      console.log('PermissionMiddleware: Normalized resource name:', normalizedResourceName);
 
-      // Check if accessibleTables is populated by tableAccessMiddleware
       if (req.user.accessibleTables) {
-        // Search both tables and masterTables arrays
         const tableAccess = [
           ...(req.user.accessibleTables.tables || []),
           ...(req.user.accessibleTables.masterTables || [])
@@ -63,58 +57,59 @@ const permissionMiddleware = (requiredPermission) => {
         );
 
         if (tableAccess) {
+          console.log('PermissionMiddleware: Found table access in accessibleTables:', tableAccess);
           let hasPermission = false;
           switch (requiredPermission) {
-            case "read":
+            case 'read':
               hasPermission = tableAccess.permissions.read;
               break;
-            case "write":
+            case 'write':
               hasPermission = tableAccess.permissions.write;
               break;
-            case "update":
+            case 'update':
               hasPermission = tableAccess.permissions.update;
               break;
-            case "delete":
+            case 'delete':
               hasPermission = tableAccess.permissions.delete;
               break;
             default:
               return res.status(400).json({
                 success: false,
-                message: "Invalid permission type",
+                message: 'Invalid permission type',
                 data: null,
-                salesRFQId: null,
-                newSalesRFQId: null,
+                permissionRoleId: null
               });
           }
 
           if (hasPermission) {
-            return next(); // Permission granted, skip database query
+            console.log('PermissionMiddleware: Permission granted via accessibleTables');
+            return next();
           } else {
             return res.status(403).json({
               success: false,
               message: `You do not have permission to ${requiredPermission} ${resourceName}`,
               data: null,
-              salesRFQId: null,
-              newSalesRFQId: null,
+              permissionRoleId: null
             });
           }
         }
       }
 
-      // If accessibleTables is not available or table is not found, fall back to database query
       const pool = await poolPromise;
+      if (!pool || typeof pool.query !== 'function') {
+        throw new Error('Database pool is not initialized');
+      }
 
-      // Get all PermissionNames from dbo_tblpermission
+      console.log('PermissionMiddleware: Querying dbo_tblpermission for TablePermission');
       const [permissionsList] = await pool.query(
-        `SELECT TablePermission FROM dbo_tblpermission WHERE IsDeleted = 0`
+        `SELECT TablePermission FROM dbo_tblpermission`
       );
 
-      // Find the matching PermissionName
       let matchedTablePermission = null;
       for (const { TablePermission } of permissionsList) {
         const normalizedTablePermission = normalizeString(TablePermission);
         if (normalizedTablePermission === normalizedResourceName) {
-          matchedTablePermission = TablePermission; // Use the original PermissionName for the query
+          matchedTablePermission = TablePermission;
           break;
         }
       }
@@ -124,25 +119,21 @@ const permissionMiddleware = (requiredPermission) => {
           success: false,
           message: `No matching permission found for resource: ${resourceName}`,
           data: null,
-          salesRFQId: null,
-          newSalesRFQId: null,
+          permissionRoleId: null
         });
       }
 
-      console.log("Matched TablePermission:", matchedTablePermission); // For debugging
+      console.log('PermissionMiddleware: Matched TablePermission:', matchedTablePermission);
 
-      // Use the matched PermissionName for the permission check
-      // Only check for user-specific permissions (PersonID = ?), ignore role-level permissions (PersonID IS NULL)
+      console.log('PermissionMiddleware: Querying dbo_tblrolepermission for permissions');
       const [permissions] = await pool.query(
         `
-        SELECT AllowRead, AllowWrite, AllowUpdate, AllowDelete
-        FROM dbo_tblrolepermission
-        WHERE RoleID = ?
-        AND PersonID = ?  -- Only match user-specific permissions
-        AND PermissionID = (
-          SELECT PermissionID FROM dbo_tblpermission 
-          WHERE TablePermission = ? AND IsDeleted = 0
-        )
+        SELECT rp.AllowRead, rp.AllowWrite, rp.AllowUpdate, rp.AllowDelete, p.IsMaster
+        FROM dbo_tblrolepermission rp
+        JOIN dbo_tblpermission p ON rp.PermissionID = p.PermissionID
+        WHERE rp.RoleID = ?
+        AND rp.PersonID = ?
+        AND p.TablePermission = ?
         `,
         [roleId, personId, matchedTablePermission]
       );
@@ -152,33 +143,31 @@ const permissionMiddleware = (requiredPermission) => {
           success: false,
           message: `No permissions defined for this user for resource ${matchedTablePermission}`,
           data: null,
-          salesRFQId: null,
-          newSalesRFQId: null,
+          permissionRoleId: null
         });
       }
 
       const permission = permissions[0];
       let hasPermission = false;
       switch (requiredPermission) {
-        case "read":
+        case 'read':
           hasPermission = permission.AllowRead === 1;
           break;
-        case "write":
+        case 'write':
           hasPermission = permission.AllowWrite === 1;
           break;
-        case "update":
+        case 'update':
           hasPermission = permission.AllowUpdate === 1;
           break;
-        case "delete":
+        case 'delete':
           hasPermission = permission.AllowDelete === 1;
           break;
         default:
           return res.status(400).json({
             success: false,
-            message: "Invalid permission type",
+            message: 'Invalid permission type',
             data: null,
-            salesRFQId: null,
-            newSalesRFQId: null,
+            permissionRoleId: null
           });
       }
 
@@ -187,23 +176,25 @@ const permissionMiddleware = (requiredPermission) => {
           success: false,
           message: `You do not have permission to ${requiredPermission} ${matchedTablePermission}`,
           data: null,
-          salesRFQId: null,
-          newSalesRFQId: null,
+          permissionRoleId: null
         });
       }
 
+      console.log('PermissionMiddleware: Permission granted via database query');
       next();
     } catch (error) {
-      console.error("Permission check error:", {
+      console.error('PermissionMiddleware: Error:', {
         message: error.message,
-        stack: error.stack
+        stack: error.stack,
+        resourceName,
+        roleId,
+        personId
       });
       return res.status(500).json({
         success: false,
         message: `Server error: ${error.message}`,
         data: null,
-        salesRFQId: null,
-        newSalesRFQId: null,
+        permissionRoleId: null
       });
     }
   };
