@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const DashboardCountsController = require('../controllers/dashboardCountsController');
+const DashboardCountsController = require('../controllers/DashboardCountsController');
 
 router.get('/', DashboardCountsController.getDashboardCounts);
 
