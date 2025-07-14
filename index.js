@@ -71,6 +71,7 @@ const dashboardCountsRoutes = require('./routes/DashboardCountsRoutes');
 const customerAddressRoutes = require('./routes/customerAddressRoutes');
 const supplierAddressRoutes = require('./routes/supplierAddressRoutes');
 const ShippingParcelRoutes = require('./routes/ShippingParcelRoutes');
+const repackagedPalletOrTobaccoRoutes = require('./routes/repackagedPalletOrTobaccoRoutes');
 
 
 const app = express();
@@ -223,7 +224,8 @@ async function startServer() {
       // ['/api/exchange-rates', exchangeRateRoutes],
       ['/api/customerAddress', customerAddressRoutes],
       ['/api/supplierAddress', supplierAddressRoutes],
-      ['/api/ShippingParcel', ShippingParcelRoutes]
+      ['/api/ShippingParcel', ShippingParcelRoutes],
+      ['/api/repackagedPalletOrTobacco', repackagedPalletOrTobaccoRoutes]
     ];
 
     routes.forEach(([path, route]) => {
