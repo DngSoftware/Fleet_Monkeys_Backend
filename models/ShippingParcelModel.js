@@ -1,311 +1,231 @@
 const poolPromise = require('../config/db.config');
 
 class ShippingParcelModel {
-  // Get Shipping Parcels (all or by ParcelID)
-  static async getShippingParcels({ parcelID = null }) {
+  static async createParcel(parcelData, userId) {
     try {
-      const pool = await poolPromise;
+      const {
+        ParentParcelID, PInvoiceID, SalesQuotationID, SupplierID, ParcelString, ParcelNumber, ParcelOutOf,
+        Type, IsRepackagedYN, ShippingAndHandellingRequirement, Notes, LoadID, LoadTrailerID, LocalLoadID,
+        ParcelDimensionID, QRCodeString, Volume, VolumeUOMID, Weight, WeightUOMID, ParcelReceivedBy,
+        ParcelDeliveredDatetime
+      } = parcelData;
 
-      const queryParams = [
-        'SELECT',
-        parcelID ? parseInt(parcelID) : null,
-        null, // ParentParcelID
-        null, // PInvoiceID
-        null, // SalesQuotationID
-        null, // SupplierID
-        null, // ParcelString
-        null, // ParcelNumber
-        null, // ParcelOutOf
-        null, // Type
-        null, // IsRepackagedYN
-        null, // ShippingAndHandellingRequirement
-        null, // Notes
-        null, // LoadID
-        null, // LoadTrailerID
-        null, // LocalLoadID
-        null, // ParcelDimensionID
-        null, // QRCodeString
-        null, // Volume
-        null, // VolumeUOMID
-        null, // Weight
-        null, // WeightUOMID
-        null, // ParcelReceivedBy
-        null, // ParcelDeliveredDatetime
-        null, // Signature
-        null, // CreatedByID
-        null  // ChangedBy
-      ];
-
-      const [results] = await pool.query(
-        `CALL SP_ManageShippingParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-         SELECT @p_Result AS result, @p_Message AS message;`,
-        queryParams
-      );
-
-      const outParams = results[1][0]; // Second result set contains OUT parameters
-
-      if (outParams.result !== 'SUCCESS') {
-        return {
-          success: false,
-          message: outParams.message || 'Failed to retrieve Shipping Parcels',
-          data: null,
-          parcelId: parcelID,
-        };
-      }
-
-      return {
-        success: true,
-        message: outParams.message || 'Shipping Parcel records retrieved successfully.',
-        data: results[0] || [],
-        parcelId: parcelID,
-      };
-    } catch (err) {
-      console.error('Database error in getShippingParcels:', err);
-      return {
-        success: false,
-        message: `Database error: ${err.message}`,
-        data: null,
-        parcelId: parcelID,
-      };
-    }
-  }
-
-  // Create a Shipping Parcel
-  static async createShippingParcel(parcelData) {
-    try {
-      const pool = await poolPromise;
-
-      const requiredFields = ['CreatedByID'];
-      const missingFields = requiredFields.filter(field => !parcelData[field]);
+      // Validate required fields
+      const requiredFields = ['PInvoiceID', 'SalesQuotationID', 'SupplierID', 'ParcelNumber', 'ParcelOutOf', 'Type'];
+      const missingFields = requiredFields.filter(field => parcelData[field] === undefined || parcelData[field] === null);
       if (missingFields.length > 0) {
         return {
           success: false,
           message: `${missingFields.join(', ')} are required`,
-          data: null,
-          parcelId: null,
+          data: null
         };
       }
 
-      const queryParams = [
-        'INSERT',
-        null, // ParcelID
-        parcelData.ParentParcelID ? parseInt(parcelData.ParentParcelID) : null,
-        parcelData.PInvoiceID ? parseInt(parcelData.PInvoiceID) : null,
-        parcelData.SalesQuotationID ? parseInt(parcelData.SalesQuotationID) : null,
-        parcelData.SupplierID ? parseInt(parcelData.SupplierID) : null,
-        parcelData.ParcelString || null,
-        parcelData.ParcelNumber ? parseInt(parcelData.ParcelNumber) : null,
-        parcelData.ParcelOutOf ? parseInt(parcelData.ParcelOutOf) : null,
-        parcelData.Type ? parseInt(parcelData.Type) : null,
-        parcelData.IsRepackagedYN != null ? Boolean(parcelData.IsRepackagedYN) : null,
-        parcelData.ShippingAndHandellingRequirement || null,
-        parcelData.Notes || null,
-        parcelData.LoadID ? parseInt(parcelData.LoadID) : null,
-        parcelData.LoadTrailerID ? parseInt(parcelData.LoadTrailerID) : null,
-        parcelData.LocalLoadID ? parseInt(parcelData.LocalLoadID) : null,
-        parcelData.ParcelDimensionID ? parseInt(parcelData.ParcelDimensionID) : null,
-        parcelData.QRCodeString || null,
-        parcelData.Volume ? parseFloat(parcelData.Volume) : null,
-        parcelData.VolumeUOMID ? parseInt(parcelData.VolumeUOMID) : null,
-        parcelData.Weight ? parseFloat(parcelData.Weight) : null,
-        parcelData.WeightUOMID ? parseInt(parcelData.WeightUOMID) : null,
-        parcelData.ParcelReceivedBy || null,
-        parcelData.ParcelDeliveredDatetime || null,
-        parcelData.Signature || null,
-        parseInt(parcelData.CreatedByID),
-        parcelData.ChangedBy || null
-      ];
+      // Validate string lengths and numeric values
+      if (ParcelString && ParcelString.trim() === '') {
+        return { success: false, message: 'ParcelString cannot be empty if provided', data: null };
+      }
+      if (QRCodeString && QRCodeString.trim() === '') {
+        return { success: false, message: 'QRCodeString cannot be empty if provided', data: null };
+      }
+      if (ShippingAndHandellingRequirement && ShippingAndHandellingRequirement.trim() === '') {
+        return { success: false, message: 'ShippingAndHandellingRequirement cannot be empty if provided', data: null };
+      }
+      if (Notes && Notes.trim() === '') {
+        return { success: false, message: 'Notes cannot be empty if provided', data: null };
+      }
+      if (ParcelReceivedBy && ParcelReceivedBy.trim() === '') {
+        return { success: false, message: 'ParcelReceivedBy cannot be empty if provided', data: null };
+      }
+      if (Volume !== undefined && Volume < 0) {
+        return { success: false, message: 'Volume cannot be negative', data: null };
+      }
+      if (Weight !== undefined && Weight < 0) {
+        return { success: false, message: 'Weight cannot be negative', data: null };
+      }
 
-      const [results] = await pool.query(
-        `CALL SP_ManageShippingParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-         SELECT @p_Result AS result, @p_Message AS message;`,
-        queryParams
+      const pool = await poolPromise;
+      const [result] = await pool.query(
+        `CALL SP_ManageShippingParcel(
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message
+        )`,
+        [
+          'INSERT', // p_Action
+          null, // p_ParcelID
+          ParentParcelID, PInvoiceID, SalesQuotationID, SupplierID, ParcelString, ParcelNumber, ParcelOutOf,
+          Type, IsRepackagedYN, ShippingAndHandellingRequirement, Notes, LoadID, LoadTrailerID, LocalLoadID,
+          ParcelDimensionID, QRCodeString, Volume, VolumeUOMID, Weight, WeightUOMID, ParcelReceivedBy,
+          ParcelDeliveredDatetime, null, userId, 'API'
+        ]
       );
 
-      const outParams = results[1][0]; // Second result set contains OUT parameters
+      const [output] = await pool.query('SELECT @p_Result AS Result, @p_Message AS Message');
+      const { Result, Message } = output[0];
 
-      if (outParams.result !== 'SUCCESS') {
-        return {
-          success: false,
-          message: outParams.message || 'Failed to create Shipping Parcel',
-          data: null,
-          parcelId: null,
-        };
+      if (Result === 'SUCCESS') {
+        const [newParcel] = await pool.query(
+          `SELECT * FROM dbo_tblshippingparcel WHERE ParcelID = ?`,
+          [parseInt(Message.split(': ')[1])]
+        );
+        return { success: true, message: Message, data: newParcel[0] };
+      } else {
+        return { success: false, message: Message, data: null };
       }
-
-      return {
-        success: true,
-        message: outParams.message || 'Shipping Parcel created successfully.',
-        data: null,
-        parcelId: outParams.message.match(/ParcelID: (\d+)/)?.[1] || null,
-      };
-    } catch (err) {
-      console.error('Database error in createShippingParcel:', err);
+    } catch (error) {
+      console.error('Create parcel error:', error);
       return {
         success: false,
-        message: `Database error: ${err.message}`,
-        data: null,
-        parcelId: null,
+        message: `Database error: ${error.message || 'Unknown error'}`,
+        data: null
       };
     }
   }
 
-  // Update a Shipping Parcel
-  static async updateShippingParcel(parcelData) {
+  static async updateParcel(parcelID, parcelData, userId) {
     try {
-      const pool = await poolPromise;
+      const {
+        ParentParcelID, PInvoiceID, SalesQuotationID, SupplierID, ParcelString, ParcelNumber, ParcelOutOf,
+        Type, IsRepackagedYN, ShippingAndHandellingRequirement, Notes, LoadID, LoadTrailerID, LocalLoadID,
+        ParcelDimensionID, QRCodeString, Volume, VolumeUOMID, Weight, WeightUOMID, ParcelReceivedBy,
+        ParcelDeliveredDatetime
+      } = parcelData;
 
-      const requiredFields = ['ParcelID'];
-      const missingFields = requiredFields.filter(field => !parcelData[field]);
-      if (missingFields.length > 0) {
-        return {
-          success: false,
-          message: `${missingFields.join(', ')} are required`,
-          data: null,
-          parcelId: parcelData.ParcelID,
-        };
+      // Validate parcel exists and ownership
+      const pool = await poolPromise;
+      const [parcelCheck] = await pool.query(
+        'SELECT CreatedByID FROM dbo_tblshippingparcel WHERE ParcelID = ?',
+        [parseInt(parcelID)]
+      );
+      if (parcelCheck.length === 0) {
+        return { success: false, message: `Parcel with ParcelID ${parcelID} does not exist`, data: null };
+      }
+      if (parcelCheck[0].CreatedByID !== parseInt(userId)) {
+        return { success: false, message: 'You are not authorized to update this parcel', data: null };
       }
 
-      const queryParams = [
-        'UPDATE',
-        parseInt(parcelData.ParcelID),
-        parcelData.ParentParcelID ? parseInt(parcelData.ParentParcelID) : null,
-        parcelData.PInvoiceID ? parseInt(parcelData.PInvoiceID) : null,
-        parcelData.SalesQuotationID ? parseInt(parcelData.SalesQuotationID) : null,
-        parcelData.SupplierID ? parseInt(parcelData.SupplierID) : null,
-        parcelData.ParcelString || null,
-        parcelData.ParcelNumber ? parseInt(parcelData.ParcelNumber) : null,
-        parcelData.ParcelOutOf ? parseInt(parcelData.ParcelOutOf) : null,
-        parcelData.Type ? parseInt(parcelData.Type) : null,
-        parcelData.IsRepackagedYN != null ? Boolean(parcelData.IsRepackagedYN) : null,
-        parcelData.ShippingAndHandellingRequirement || null,
-        parcelData.Notes || null,
-        parcelData.LoadID ? parseInt(parcelData.LoadID) : null,
-        parcelData.LoadTrailerID ? parseInt(parcelData.LoadTrailerID) : null,
-        parcelData.LocalLoadID ? parseInt(parcelData.LocalLoadID) : null,
-        parcelData.ParcelDimensionID ? parseInt(parcelData.ParcelDimensionID) : null,
-        parcelData.QRCodeString || null,
-        parcelData.Volume ? parseFloat(parcelData.Volume) : null,
-        parcelData.VolumeUOMID ? parseInt(parcelData.VolumeUOMID) : null,
-        parcelData.Weight ? parseFloat(parcelData.Weight) : null,
-        parcelData.WeightUOMID ? parseInt(parcelData.WeightUOMID) : null,
-        parcelData.ParcelReceivedBy || null,
-        parcelData.ParcelDeliveredDatetime || null,
-        parcelData.Signature || null,
-        null, // CreatedByID
-        parcelData.ChangedBy || null
-      ];
+      // Validate inputs
+      if (ParcelString && ParcelString.trim() === '') {
+        return { success: false, message: 'ParcelString cannot be empty if provided', data: null };
+      }
+      if (QRCodeString && QRCodeString.trim() === '') {
+        return { success: false, message: 'QRCodeString cannot be empty if provided', data: null };
+      }
+      if (ShippingAndHandellingRequirement && ShippingAndHandellingRequirement.trim() === '') {
+        return { success: false, message: 'ShippingAndHandellingRequirement cannot be empty if provided', data: null };
+      }
+      if (Notes && Notes.trim() === '') {
+        return { success: false, message: 'Notes cannot be empty if provided', data: null };
+      }
+      if (ParcelReceivedBy && ParcelReceivedBy.trim() === '') {
+        return { success: false, message: 'ParcelReceivedBy cannot be empty if provided', data: null };
+      }
+      if (Volume !== undefined && Volume < 0) {
+        return { success: false, message: 'Volume cannot be negative', data: null };
+      }
+      if (Weight !== undefined && Weight < 0) {
+        return { success: false, message: 'Weight cannot be negative', data: null };
+      }
 
-      const [results] = await pool.query(
-        `CALL SP_ManageShippingParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-         SELECT @p_Result AS result, @p_Message AS message;`,
-        queryParams
+      const [result] = await pool.query(
+        `CALL SP_ManageShippingParcel(
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message
+        )`,
+        [
+          'UPDATE', // p_Action
+          parcelID, // p_ParcelID
+          ParentParcelID, PInvoiceID, SalesQuotationID, SupplierID, ParcelString, ParcelNumber, ParcelOutOf,
+          Type, IsRepackagedYN, ShippingAndHandellingRequirement, Notes, LoadID, LoadTrailerID, LocalLoadID,
+          ParcelDimensionID, QRCodeString, Volume, VolumeUOMID, Weight, WeightUOMID, ParcelReceivedBy,
+          ParcelDeliveredDatetime, null, userId, 'API'
+        ]
       );
 
-      const outParams = results[1][0]; // Second result set contains OUT parameters
+      const [output] = await pool.query('SELECT @p_Result AS Result, @p_Message AS Message');
+      const { Result, Message } = output[0];
 
-      if (outParams.result !== 'SUCCESS') {
-        return {
-          success: false,
-          message: outParams.message || 'Failed to update Shipping Parcel',
-          data: null,
-          parcelId: parcelData.ParcelID,
-        };
+      if (Result === 'SUCCESS') {
+        const [updatedParcel] = await pool.query(
+          `SELECT * FROM dbo_tblshippingparcel WHERE ParcelID = ?`,
+          [parseInt(parcelID)]
+        );
+        return { success: true, message: Message, data: updatedParcel[0] };
+      } else {
+        return { success: false, message: Message, data: null };
       }
-
-      return {
-        success: true,
-        message: outParams.message || 'Shipping Parcel updated successfully.',
-        data: null,
-        parcelId: parcelData.ParcelID,
-      };
-    } catch (err) {
-      console.error('Database error in updateShippingParcel:', err);
+    } catch (error) {
+      console.error('Update parcel error:', error);
       return {
         success: false,
-        message: `Database error: ${err.message}`,
-        data: null,
-        parcelId: parcelData.ParcelID,
+        message: `Database error: ${error.message || 'Unknown error'}`,
+        data: null
       };
     }
   }
 
-  // Delete a Shipping Parcel
-  static async deleteShippingParcel(parcelData) {
+  static async getParcel(parcelID) {
     try {
       const pool = await poolPromise;
-
-      const requiredFields = ['ParcelID', 'ChangedBy'];
-      const missingFields = requiredFields.filter(field => !parcelData[field]);
-      if (missingFields.length > 0) {
-        return {
-          success: false,
-          message: `${missingFields.join(', ')} are required`,
-          data: null,
-          parcelId: parcelData.ParcelID,
-        };
-      }
-
-      const queryParams = [
-        'DELETE',
-        parseInt(parcelData.ParcelID),
-        null, // ParentParcelID
-        null, // PInvoiceID
-        null, // SalesQuotationID
-        null, // SupplierID
-        null, // ParcelString
-        null, // ParcelNumber
-        null, // ParcelOutOf
-        null, // Type
-        null, // IsRepackagedYN
-        null, // ShippingAndHandellingRequirement
-        null, // Notes
-        null, // LoadID
-        null, // LoadTrailerID
-        null, // LocalLoadID
-        null, // ParcelDimensionID
-        null, // QRCodeString
-        null, // Volume
-        null, // VolumeUOMID
-        null, // Weight
-        null, // WeightUOMID
-        null, // ParcelReceivedBy
-        null, // ParcelDeliveredDatetime
-        null, // Signature
-        null, // CreatedByID
-        parcelData.ChangedBy || null
-      ];
-
-      const [results] = await pool.query(
-        `CALL SP_ManageShippingParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-         SELECT @p_Result AS result, @p_Message AS message;`,
-        queryParams
+      const [result] = await pool.query(
+        `CALL SP_ManageShippingParcel(
+          ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, @p_Result, @p_Message
+        )`,
+        ['SELECT', parcelID]
       );
 
-      const outParams = results[1][0]; // Second result set contains OUT parameters
-
-      if (outParams.result !== 'SUCCESS') {
-        return {
-          success: false,
-          message: outParams.message || 'Failed to delete Shipping Parcel',
-          data: null,
-          parcelId: parcelData.ParcelID,
-        };
-      }
+      const [output] = await pool.query('SELECT @p_Result AS Result, @p_Message AS Message');
+      const { Result, Message } = output[0];
 
       return {
-        success: true,
-        message: outParams.message || 'Shipping Parcel deleted successfully.',
-        data: null,
-        parcelId: parcelData.ParcelID,
+        success: Result === 'SUCCESS',
+        message: Message,
+        data: result[0]
       };
-    } catch (err) {
-      console.error('Database error in deleteShippingParcel:', err);
+    } catch (error) {
+      console.error('Get parcel error:', error);
       return {
         success: false,
-        message: `Database error: ${err.message}`,
-        data: null,
-        parcelId: parcelData.ParcelID,
+        message: `Database error: ${error.message || 'Unknown error'}`,
+        data: null
+      };
+    }
+  }
+
+  static async deleteParcel(parcelID, userId) {
+    try {
+      // Validate parcel exists and ownership
+      const pool = await poolPromise;
+      const [parcelCheck] = await pool.query(
+        'SELECT CreatedByID FROM dbo_tblshippingparcel WHERE ParcelID = ?',
+        [parseInt(parcelID)]
+      );
+      if (parcelCheck.length === 0) {
+        return { success: false, message: `Parcel with ParcelID ${parcelID} does not exist`, data: null };
+      }
+      if (parcelCheck[0].CreatedByID !== parseInt(userId)) {
+        return { success: false, message: 'You are not authorized to delete this parcel', data: null };
+      }
+
+      const [result] = await pool.query(
+        `CALL SP_ManageShippingParcel(
+          ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, @p_Result, @p_Message
+        )`,
+        ['DELETE', parcelID]
+      );
+
+      const [output] = await pool.query('SELECT @p_Result AS Result, @p_Message AS Message');
+      const { Result, Message } = output[0];
+
+      return {
+        success: Result === 'SUCCESS',
+        message: Message,
+        data: null
+      };
+    } catch (error) {
+      console.error('Delete parcel error:', error);
+      return {
+        success: false,
+        message: `Database error: ${error.message || 'Unknown error'}`,
+        data: null
       };
     }
   }
