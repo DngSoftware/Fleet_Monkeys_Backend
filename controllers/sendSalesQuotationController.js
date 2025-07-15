@@ -1,6 +1,6 @@
 const { getSalesQuotationDetails } = require('../models/sendSalesQuotationModel');
 const { generateSalesQuotationPDF } = require('../services/pdfGenerator1');
-const { sendRFQEmail } = require('../utils/emailSender');
+const { sendDocumentEmail } = require('../utils/emailSender'); // Updated import
 
 async function sendSalesQuotation(req, res) {
   const { salesQuotationID } = req.body;
@@ -36,7 +36,7 @@ async function sendSalesQuotation(req, res) {
 
     // Send email with PDF
     console.log(`Sending email to ${quotationDetails.CustomerEmail} for Sales Quotation ${quotationDetails.Series}`);
-    const emailResult = await sendRFQEmail(quotationDetails.CustomerEmail, quotationDetails.Series, pdfBuffer);
+    const emailResult = await sendDocumentEmail(quotationDetails.CustomerEmail, quotationDetails.Series, pdfBuffer, 'SalesQuotation'); // Updated function call
     console.log(`Email result for SalesQuotationID=${salesQuotationID}:`, emailResult);
 
     return res.status(200).json({
