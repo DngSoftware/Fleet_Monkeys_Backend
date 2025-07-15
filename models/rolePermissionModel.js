@@ -30,6 +30,18 @@ class RolePermissionModel {
         );
         if (personCheck.length === 0) errors.push(`PersonID ${rolePermissionData.PersonID} does not exist`);
       }
+      if (action === 'INSERT' && rolePermissionData.RoleID && rolePermissionData.PermissionID) {
+        const [uniqueCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblrolepermission WHERE RoleID = ? AND PermissionID = ? AND (PersonID = ? OR (PersonID IS NULL AND ? IS NULL))',
+          [
+            parseInt(rolePermissionData.RoleID),
+            parseInt(rolePermissionData.PermissionID),
+            parseInt(rolePermissionData.PersonID) || null,
+            parseInt(rolePermissionData.PersonID) || null
+          ]
+        );
+        if (uniqueCheck.length > 0) errors.push(`Combination of RoleID ${rolePermissionData.RoleID}, PermissionID ${rolePermissionData.PermissionID}, and PersonID ${rolePermissionData.PersonID || 'NULL'} already exists`);
+      }
     }
 
     return errors.length > 0 ? errors.join('; ') : null;
@@ -74,7 +86,7 @@ class RolePermissionModel {
         rolePermissionData.AllowWrite != null ? Boolean(rolePermissionData.AllowWrite) : null,
         rolePermissionData.AllowUpdate != null ? Boolean(rolePermissionData.AllowUpdate) : null,
         rolePermissionData.AllowDelete != null ? Boolean(rolePermissionData.AllowDelete) : null,
-        parseInt(rolePermissionData.PersonID) || null
+        rolePermissionData.PersonID ? parseInt(rolePermissionData.PersonID) : null
       ];
 
       const [result] = await pool.query(query, params);
@@ -86,6 +98,14 @@ class RolePermissionModel {
       };
     } catch (error) {
       console.error('Database error in INSERT operation:', error);
+      if (error.code === 'ER_DUP_ENTRY') {
+        return {
+          success: false,
+          message: `Unique constraint violation: RoleID, PermissionID, and PersonID combination already exists`,
+          data: null,
+          permissionRoleId: null
+        };
+      }
       return {
         success: false,
         message: `Database error: ${error.message || 'Unknown error'}`,
@@ -149,16 +169,28 @@ class RolePermissionModel {
           rolePermissionData.AllowWrite != null ? Boolean(rolePermissionData.AllowWrite) : null,
           rolePermissionData.AllowUpdate != null ? Boolean(rolePermissionData.AllowUpdate) : null,
           rolePermissionData.AllowDelete != null ? Boolean(rolePermissionData.AllowDelete) : null,
-          parseInt(rolePermissionData.PersonID) || null
+          rolePermissionData.PersonID ? parseInt(rolePermissionData.PersonID) : null
         ];
 
-        const [result] = await pool.query(query, params);
-        permissionRoleIds.push(result.insertId);
-        results.push({
-          success: true,
-          message: 'RolePermission created successfully',
-          permissionRoleId: result.insertId
-        });
+        try {
+          const [result] = await pool.query(query, params);
+          permissionRoleIds.push(result.insertId);
+          results.push({
+            success: true,
+            message: 'RolePermission created successfully',
+            permissionRoleId: result.insertId
+          });
+        } catch (error) {
+          if (error.code === 'ER_DUP_ENTRY') {
+            results.push({
+              success: false,
+              message: `Unique constraint violation: RoleID ${rolePermissionData.RoleID}, PermissionID ${rolePermissionData.PermissionID}, PersonID ${rolePermissionData.PersonID || 'NULL'} already exists`,
+              permissionRoleId: null
+            });
+            continue;
+          }
+          throw error; // Rethrow other errors to trigger rollback
+        }
       }
 
       await pool.query('COMMIT');
@@ -174,8 +206,8 @@ class RolePermissionModel {
       return {
         success: false,
         message: `Database error: ${error.message || 'Unknown error'}`,
-        data: null,
-        permissionRoleIds: []
+        data: results.length > 0 ? results : null,
+        permissionRoleIds
       };
     }
   }
@@ -184,7 +216,7 @@ class RolePermissionModel {
     if (!rolePermissionData.PermissionRoleID) {
       return {
         success: false,
-        message: 'PermissionRoleID is required for UPDATE',
+        message: 'PermissionRoleID is required for global role permission update',
         data: null,
         permissionRoleId: null
       };
@@ -218,13 +250,13 @@ class RolePermissionModel {
         WHERE PermissionRoleID = ?
       `;
       const params = [
-        parseInt(rolePermissionData.PermissionID) || null,
-        parseInt(rolePermissionData.RoleID) || null,
+        rolePermissionData.PermissionID ? parseInt(rolePermissionData.PermissionID) : null,
+        rolePermissionData.RoleID ? parseInt(rolePermissionData.RoleID) : null,
         rolePermissionData.AllowRead != null ? Boolean(rolePermissionData.AllowRead) : null,
         rolePermissionData.AllowWrite != null ? Boolean(rolePermissionData.AllowWrite) : null,
         rolePermissionData.AllowUpdate != null ? Boolean(rolePermissionData.AllowUpdate) : null,
         rolePermissionData.AllowDelete != null ? Boolean(rolePermissionData.AllowDelete) : null,
-        parseInt(rolePermissionData.PersonID) || null,
+        rolePermissionData.PersonID ? parseInt(rolePermissionData.PersonID) : null,
         parseInt(rolePermissionData.PermissionRoleID)
       ];
 
@@ -246,6 +278,14 @@ class RolePermissionModel {
       };
     } catch (error) {
       console.error('Database error in UPDATE operation:', error);
+      if (error.code === 'ER_DUP_ENTRY') {
+        return {
+          success: false,
+          message: `Unique constraint violation: RoleID, PermissionID, and PersonID combination already exists`,
+          data: null,
+          permissionRoleId: rolePermissionData.PermissionRoleID
+        };
+      }
       return {
         success: false,
         message: `Database error: ${error.message || 'Unknown error'}`,
@@ -363,8 +403,10 @@ class RolePermissionModel {
       if (!pool || typeof pool.query !== 'function') {
         throw new Error('Database pool is not initialized');
       }
-      const pageNumber = parseInt(paginationData.PageNumber) || 1;
-      const pageSize = parseInt(paginationData.PageSize) || 10;
+      const pageNumber = Math.max(1, parseInt(paginationData.PageNumber) || 1);
+      const pageSize = Math.max(1, Math.min(100, parseInt(paginationData.PageSize) || 10));
+      const sortBy = paginationData.SortBy && ['PermissionRoleID', 'RoleID', 'PermissionID'].includes(paginationData.SortBy) ? paginationData.SortBy : 'PermissionRoleID';
+      const sortOrder = paginationData.SortOrder && ['ASC', 'DESC'].includes(paginationData.SortOrder.toUpperCase()) ? paginationData.SortOrder.toUpperCase() : 'ASC';
       const offset = (pageNumber - 1) * pageSize;
 
       const query = `
@@ -374,6 +416,7 @@ class RolePermissionModel {
         LEFT JOIN dbo_tblpermission p ON rp.PermissionID = p.PermissionID
         LEFT JOIN dbo_tblroles r ON rp.RoleID = r.RoleID
         LEFT JOIN dbo_tblperson pers ON rp.PersonID = pers.PersonID
+        ORDER BY ${sortBy} ${sortOrder}
         LIMIT ? OFFSET ?
       `;
       const countQuery = `
@@ -389,6 +432,9 @@ class RolePermissionModel {
         message: 'RolePermission records retrieved successfully',
         data: data || [],
         totalRecords: totalRecords || 0,
+        totalPages: Math.ceil(totalRecords / pageSize),
+        currentPage: pageNumber,
+        pageSize: pageSize,
         permissionRoleId: null
       };
     } catch (error) {
@@ -397,6 +443,10 @@ class RolePermissionModel {
         success: false,
         message: `Database error: ${error.message || 'Unknown error'}`,
         data: null,
+        totalRecords: 0,
+        totalPages: 0,
+        currentPage: 1,
+        pageSize: 10,
         permissionRoleId: null
       };
     }
