@@ -4,7 +4,7 @@ const User = require('../models/authModel');
 const PasswordReset = require('../models/passwordResetModel');
 const EmailService = require('../utils/emailService');
 
-// Hardcoded JWT secret (not recommended for production)
+// Hardcoded JWT secret (not recommended for production asdfvfjkvndzkfjv bdk)
 const JWT_SECRET = '8d9f7e2b4c5a1d3f9e7b2a4c8d5e1f3g9h2j4k6m8n1p3q5r7t9v';
 
 class AuthController {
