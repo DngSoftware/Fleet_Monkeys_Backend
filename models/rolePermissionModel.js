@@ -295,6 +295,84 @@ class RolePermissionModel {
     }
   }
 
+  static async updateRolePermissionsByRoleId(roleId, permissionData) {
+    if (!roleId) {
+      return {
+        success: false,
+        message: 'RoleID is required for bulk update',
+        data: null,
+        updatedCount: 0
+      };
+    }
+
+    try {
+      const pool = await poolPromise;
+      if (!pool || typeof pool.query !== 'function') {
+        throw new Error('Database pool is not initialized');
+      }
+
+      // Validate RoleID
+      const [roleCheck] = await pool.query(
+        'SELECT 1 FROM dbo_tblroles WHERE RoleID = ?',
+        [parseInt(roleId)]
+      );
+      if (roleCheck.length === 0) {
+        return {
+          success: false,
+          message: `RoleID ${roleId} does not exist`,
+          data: null,
+          updatedCount: 0
+        };
+      }
+
+      const query = `
+        UPDATE dbo_tblrolepermission
+        SET
+          AllowRead = ?,
+          AllowWrite = ?,
+          AllowUpdate = ?,
+          AllowDelete = ?
+        WHERE RoleID = ?
+      `;
+      const params = [
+        permissionData.AllowRead != null ? Boolean(permissionData.AllowRead) : null,
+        permissionData.AllowWrite != null ? Boolean(permissionData.AllowWrite) : null,
+        permissionData.AllowUpdate != null ? Boolean(permissionData.AllowUpdate) : null,
+        permissionData.AllowDelete != null ? Boolean(permissionData.AllowDelete) : null,
+        parseInt(roleId)
+      ];
+
+      await pool.query('START TRANSACTION');
+      const [result] = await pool.query(query, params);
+      await pool.query('COMMIT');
+
+      if (result.affectedRows === 0) {
+        return {
+          success: false,
+          message: 'No role permissions found for the specified RoleID',
+          data: null,
+          updatedCount: 0
+        };
+      }
+
+      return {
+        success: true,
+        message: `Updated ${result.affectedRows} role permissions successfully`,
+        data: null,
+        updatedCount: result.affectedRows
+      };
+    } catch (error) {
+      await pool.query('ROLLBACK');
+      console.error('Database error in BULK UPDATE by RoleID operation:', error);
+      return {
+        success: false,
+        message: `Database error: ${error.message || 'Unknown error'}`,
+        data: null,
+        updatedCount: 0
+      };
+    }
+  }
+
   static async deleteRolePermission(rolePermissionData) {
     if (!rolePermissionData.PermissionRoleID) {
       return {
@@ -448,6 +526,95 @@ class RolePermissionModel {
         currentPage: 1,
         pageSize: 10,
         permissionRoleId: null
+      };
+    }
+  }
+
+  static async getRolePermissionsByRoleId(roleId, paginationData) {
+    if (!roleId) {
+      return {
+        success: false,
+        message: 'RoleID is required for SELECT',
+        data: null,
+        totalRecords: 0,
+        totalPages: 0,
+        currentPage: 1,
+        pageSize: 10,
+        personCount: 0
+      };
+    }
+
+    try {
+      const pool = await poolPromise;
+      if (!pool || typeof pool.query !== 'function') {
+        throw new Error('Database pool is not initialized');
+      }
+
+      // Validate RoleID
+      const [roleCheck] = await pool.query(
+        'SELECT 1 FROM dbo_tblroles WHERE RoleID = ?',
+        [parseInt(roleId)]
+      );
+      if (roleCheck.length === 0) {
+        return {
+          success: false,
+          message: `RoleID ${roleId} does not exist`,
+          data: null,
+          totalRecords: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 10,
+          personCount: 0
+        };
+      }
+
+      const pageNumber = Math.max(1, parseInt(paginationData.PageNumber) || 1);
+      const pageSize = Math.max(1, Math.min(100, parseInt(paginationData.PageSize) || 10));
+      const sortBy = paginationData.SortBy && ['PermissionRoleID', 'PermissionID', 'PersonID'].includes(paginationData.SortBy) ? paginationData.SortBy : 'PermissionRoleID';
+      const sortOrder = paginationData.SortOrder && ['ASC', 'DESC'].includes(paginationData.SortOrder.toUpperCase()) ? paginationData.SortOrder.toUpperCase() : 'ASC';
+      const offset = (pageNumber - 1) * pageSize;
+
+      const query = `
+        SELECT rp.*, p.TablePermission, p.IsMaster, r.RoleName,
+               CONCAT(pers.FirstName, ' ', COALESCE(pers.MiddleName, ''), ' ', pers.LastName) AS PersonName
+        FROM dbo_tblrolepermission rp
+        LEFT JOIN dbo_tblpermission p ON rp.PermissionID = p.PermissionID
+        LEFT JOIN dbo_tblroles r ON rp.RoleID = r.RoleID
+        LEFT JOIN dbo_tblperson pers ON rp.PersonID = pers.PersonID
+        WHERE rp.RoleID = ?
+        ORDER BY ${sortBy} ${sortOrder}
+        LIMIT ? OFFSET ?
+      `;
+      const countQuery = `
+        SELECT COUNT(*) AS totalRecords, COUNT(DISTINCT rp.PersonID) AS personCount
+        FROM dbo_tblrolepermission rp
+        WHERE rp.RoleID = ?
+      `;
+
+      const [data] = await pool.query(query, [parseInt(roleId), pageSize, offset]);
+      const [[{ totalRecords, personCount }]] = await pool.query(countQuery, [parseInt(roleId)]);
+
+      return {
+        success: true,
+        message: 'Role permissions retrieved successfully',
+        data: data || [],
+        totalRecords: totalRecords || 0,
+        totalPages: Math.ceil(totalRecords / pageSize),
+        currentPage: pageNumber,
+        pageSize: pageSize,
+        personCount: personCount || 0
+      };
+    } catch (error) {
+      console.error('Database error in SELECT by RoleID operation:', error);
+      return {
+        success: false,
+        message: `Database error: ${error.message || 'Unknown error'}`,
+        data: null,
+        totalRecords: 0,
+        totalPages: 0,
+        currentPage: 1,
+        pageSize: 10,
+        personCount: 0
       };
     }
   }

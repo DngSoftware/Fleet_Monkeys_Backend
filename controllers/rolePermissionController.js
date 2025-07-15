@@ -97,6 +97,38 @@ class RolePermissionController {
     }
   }
 
+  static async updateRolePermissionsByRoleId(req, res) {
+    try {
+      const roleId = parseInt(req.params.roleId);
+      if (isNaN(roleId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing RoleID',
+          data: null,
+          updatedCount: 0
+        });
+      }
+
+      const permissionData = {
+        AllowRead: req.body.AllowRead != null ? Boolean(req.body.AllowRead) : null,
+        AllowWrite: req.body.AllowWrite != null ? Boolean(req.body.AllowWrite) : null,
+        AllowUpdate: req.body.AllowUpdate != null ? Boolean(req.body.AllowUpdate) : null,
+        AllowDelete: req.body.AllowDelete != null ? Boolean(req.body.AllowDelete) : null
+      };
+
+      const result = await RolePermissionModel.updateRolePermissionsByRoleId(roleId, permissionData);
+      return res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+      console.error('Update RolePermissions by RoleID error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        updatedCount: 0
+      });
+    }
+  }
+
   static async deleteRolePermission(req, res) {
     try {
       const permissionRoleId = parseInt(req.params.id);
@@ -177,6 +209,46 @@ class RolePermissionController {
         currentPage: 1,
         pageSize: 10,
         permissionRoleId: null
+      });
+    }
+  }
+
+  static async getRolePermissionsByRoleId(req, res) {
+    try {
+      const roleId = parseInt(req.params.roleId);
+      if (isNaN(roleId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing RoleID',
+          data: null,
+          totalRecords: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 10,
+          personCount: 0
+        });
+      }
+
+      const paginationData = {
+        PageNumber: req.query.pageNumber ? parseInt(req.query.pageNumber) : 1,
+        PageSize: req.query.pageSize ? parseInt(req.query.pageSize) : 10,
+        SortBy: req.query.sortBy || 'PermissionRoleID',
+        SortOrder: req.query.sortOrder || 'ASC'
+      };
+
+      const result = await RolePermissionModel.getRolePermissionsByRoleId(roleId, paginationData);
+      return res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+      console.error('Get RolePermissions by RoleID error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        totalRecords: 0,
+        totalPages: 0,
+        currentPage: 1,
+        pageSize: 10,
+        personCount: 0
       });
     }
   }
