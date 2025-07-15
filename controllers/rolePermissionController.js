@@ -159,7 +159,9 @@ class RolePermissionController {
     try {
       const paginationData = {
         PageNumber: req.query.pageNumber ? parseInt(req.query.pageNumber) : 1,
-        PageSize: req.query.pageSize ? parseInt(req.query.pageSize) : 10
+        PageSize: req.query.pageSize ? parseInt(req.query.pageSize) : 10,
+        SortBy: req.query.sortBy || 'PermissionRoleID',
+        SortOrder: req.query.sortOrder || 'ASC'
       };
 
       const result = await RolePermissionModel.getAllRolePermissions(paginationData);
@@ -170,6 +172,10 @@ class RolePermissionController {
         success: false,
         message: `Server error: ${error.message}`,
         data: null,
+        totalRecords: 0,
+        totalPages: 0,
+        currentPage: 1,
+        pageSize: 10,
         permissionRoleId: null
       });
     }
