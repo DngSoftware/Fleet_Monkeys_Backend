@@ -46,8 +46,6 @@ router.delete(
 router.get(
   '/:salesrfqid/parcels',
   authMiddleware,
-  tableAccessMiddleware,
-  permissionMiddleware('read'),
   SalesQuotationController.getSupplierQuotationParcels
 );
 

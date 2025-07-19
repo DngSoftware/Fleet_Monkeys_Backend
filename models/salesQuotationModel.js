@@ -207,7 +207,7 @@ class SalesQuotationModel {
 
       try {
         // If supplierquotationparcelids are provided, populate TempSelectedParcels
-        if (data.supplierquotationparcelids && Array.isArray(data.supplierquotationparcelids) && data.supplierquotationparcelids.length > 0) {
+        if (data.supplierquotationparcelid && Array.isArray(data.supplierquotationparcelid) && data.supplierquotationparcelid.length > 0) {
           // Drop and recreate TempSelectedParcels
           await connection.query('DROP TEMPORARY TABLE IF EXISTS TempSelectedParcels');
           await connection.query(`
@@ -265,7 +265,7 @@ class SalesQuotationModel {
               AND sq.isdeleted = 0
               AND sqp.isdeleted = 0
           `;
-          await connection.query(insertQuery, [data.supplierquotationparcelids, parseInt(id)]);
+          await connection.query(insertQuery, [data.supplierquotationparcelid, parseInt(id)]);
         }
 
         const queryParams = [
