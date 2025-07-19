@@ -161,7 +161,7 @@ class SalesQuotationController {
     }
   }
 
-  // Update a Sales Quotation
+  // Update a Sales Quotationrg
   static async updateSalesQuotation(req, res) {
     try {
       const { id } = req.params;
