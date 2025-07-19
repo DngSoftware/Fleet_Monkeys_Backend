@@ -196,7 +196,7 @@ class SalesQuotationController {
         isdeliveryonly: req.body.isdeliveryonly,
         taxesandothercharges: req.body.taxesandothercharges,
         createdbyid: req.body.createdbyid,
-        supplierquotationparcelids: req.body.supplierquotationparcelids
+        supplierquotationparcelid: req.body.supplierquotationparcelid
       };
 
       if (!data.createdbyid) {
@@ -209,10 +209,10 @@ class SalesQuotationController {
         });
       }
 
-      if (data.supplierquotationparcelids && (!Array.isArray(data.supplierquotationparcelids) || data.supplierquotationparcelids.length === 0)) {
+      if (data.supplierquotationparcelid && (!Array.isArray(data.supplierquotationparcelid) || data.supplierquotationparcelid.length === 0)) {
         return res.status(400).json({
           success: false,
-          message: 'supplierquotationparcelids must be a non-empty array.',
+          message: 'supplierquotationparcelid must be a non-empty array.',
           data: null,
           salesquotationid: null,
           newsalesquotationid: null
