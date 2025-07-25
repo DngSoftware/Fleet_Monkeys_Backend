@@ -2,31 +2,25 @@ const express = require('express');
 const router = express.Router();
 const ShippingParcelController = require('../controllers/ShippingParcelController');
 const authMiddleware = require('../middleware/authMiddleware');
-// const tableAccessMiddleware = require('../middleware/tableAccessMiddleware');
-// const permissionMiddleware = require('../middleware/permissionMiddleware');
+const tableAccessMiddleware = require('../middleware/tableAccessMiddleware');
+const permissionMiddleware = require('../middleware/permissionMiddleware');
 
-// Create a new parcel (requires write permission on ShippingParcel)
-router.post('/', 
-  authMiddleware, 
-  ShippingParcelController.createParcel
-);
+// Get all ShippingParcels (requires read permission on ShippingParcel table)
+router.get('/', authMiddleware, ShippingParcelController.getAllShippingParcels);
 
-// Update a parcel (requires write permission on ShippingParcel and ownership)
-router.put('/:parcelID', 
-  authMiddleware,
-  ShippingParcelController.updateParcel
-);
+// Get a single ShippingParcel by ID (requires read permission on ShippingParcel table)
+router.get('/:id', authMiddleware, ShippingParcelController.getShippingParcel);
 
-// Get a parcel or all parcels (requires read permission on ShippingParcel)
-router.get('/:parcelID?', 
-  authMiddleware,
-  ShippingParcelController.getParcel
-);
+// Create a new ShippingParcel (requires write permission on ShippingParcel table)
+router.post('/', authMiddleware, tableAccessMiddleware, permissionMiddleware('write'), ShippingParcelController.createShippingParcel);
 
-// Delete a parcel (requires write permission on ShippingParcel and ownership)
-router.delete('/:parcelID', 
-  authMiddleware, 
-  ShippingParcelController.deleteParcel
-);
+// Update a ShippingParcel (requires update permission on ShippingParcel table)
+router.put('/:id', authMiddleware, tableAccessMiddleware, permissionMiddleware('update'), ShippingParcelController.updateShippingParcel);
+
+// Delete a ShippingParcel (soft delete, requires delete permission on ShippingParcel table)
+router.delete('/:id', authMiddleware, tableAccessMiddleware, permissionMiddleware('delete'), ShippingParcelController.deleteShippingParcel);
+
+// Generate QR code URL for a ShippingParcel (requires read permission on ShippingParcel table)
+router.get('/:id/qrcode', authMiddleware, ShippingParcelController.generateQRCode);
 
 module.exports = router;
