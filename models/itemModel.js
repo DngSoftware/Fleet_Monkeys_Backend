@@ -1,4 +1,6 @@
 const poolPromise = require('../config/db.config');
+const fs = require('fs').promises;
+const path = require('path');
 
 class ItemModel {
   // Get paginated Items
@@ -6,9 +8,8 @@ class ItemModel {
     try {
       const pool = await poolPromise;
 
-      // Validate parameters
       if (pageNumber < 1) pageNumber = 1;
-      if (pageSize < 1 || pageSize > 100) pageSize = 10; // Cap pageSize at 100
+      if (pageSize < 1 || pageSize > 100) pageSize = 10;
       let formattedFromDate = null, formattedToDate = null;
 
       if (fromDate) {
@@ -32,7 +33,6 @@ class ItemModel {
 
       console.log('getAllItems params:', JSON.stringify(queryParams, null, 2));
 
-      // Call SP_GetAllItems
       const [results] = await pool.query(
         'CALL SP_GetAllItems(?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
@@ -40,7 +40,6 @@ class ItemModel {
 
       console.log('getAllItems results:', JSON.stringify(results, null, 2));
 
-      // Fetch output parameters
       const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
 
       console.log('getAllItems output:', JSON.stringify(output, null, 2));
@@ -53,7 +52,6 @@ class ItemModel {
         throw new Error(output[0].p_Message || 'Failed to retrieve items');
       }
 
-      // Calculate total records separately since SP_GetAllItems does not return total count
       const [totalResult] = await pool.query(
         'SELECT COUNT(*) AS totalRecords FROM dbo_tblitem WHERE IsDeleted = 0 ' +
         'AND ( ? IS NULL OR CreatedDateTime >= ? ) ' +
@@ -68,8 +66,22 @@ class ItemModel {
 
       const totalRecords = totalResult[0]?.totalRecords || 0;
 
+      const itemsWithImages = await Promise.all((Array.isArray(results[0]) ? results[0] : []).map(async (item) => {
+        if (item.itemImageFileName) {
+          const imagePath = path.join(__dirname, '../Uploads', item.itemImageFileName);
+          try {
+            const imageData = await fs.readFile(imagePath, { encoding: 'base64' });
+            item.itemImage = `data:image/jpeg;base64,${imageData}`;
+          } catch (err) {
+            console.error(`Failed to read image ${item.itemImageFileName}:`, err);
+            item.itemImage = null;
+          }
+        }
+        return item;
+      }));
+
       return {
-        data: Array.isArray(results[0]) ? results[0] : [],
+        data: itemsWithImages,
         totalRecords,
         currentPage: pageNumber,
         pageSize,
@@ -88,33 +100,28 @@ class ItemModel {
 
       const queryParams = [
         'INSERT',
-        null, // p_ItemID
+        null,
         data.itemCode,
         data.itemName,
         data.certificationId,
-        data.itemImage,
+        null,
         data.itemImageFileName,
         data.itemGroupId,
         data.defaultUomId,
         data.createdById
       ];
 
-      // Log query parameters
       console.log('createItem params:', queryParams);
 
-      // Call SP_ManageItem
       const [results] = await pool.query(
         'CALL SP_ManageItem(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
-      // Log results
       console.log('createItem results:', JSON.stringify(results, null, 2));
 
-      // Fetch output parameters
       const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message, @p_ItemID AS p_ItemID');
 
-      // Log output
       console.log('createItem output:', JSON.stringify(output, null, 2));
 
       if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
@@ -126,7 +133,7 @@ class ItemModel {
       }
 
       return {
-        itemId: output[0].p_ItemID || null, // SP returns the new ItemID
+        itemId: output[0].p_ItemID || null,
         message: output[0].p_Message
       };
     } catch (err) {
@@ -143,32 +150,20 @@ class ItemModel {
       const queryParams = [
         'SELECT',
         id,
-        null, // p_ItemCode
-        null, // p_ItemName
-        null, // p_CertificationID
-        null, // p_ItemImage
-        null, // p_ItemImageFileName
-        null, // p_ItemGroupID
-        null, // p_DefaultUOMID
-        null  // p_CreatedByID
+        null, null, null, null, null, null, null, null
       ];
 
-      // Log query parameters
       console.log('getItemById params:', queryParams);
 
-      // Call SP_ManageItem
       const [results] = await pool.query(
         'CALL SP_ManageItem(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
-      // Log results
       console.log('getItemById results:', JSON.stringify(results, null, 2));
 
-      // Fetch output parameters
       const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
 
-      // Log output
       console.log('getItemById output:', JSON.stringify(output, null, 2));
 
       if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
@@ -179,9 +174,55 @@ class ItemModel {
         throw new Error(output[0].p_Message || 'Item not found');
       }
 
-      return results[0][0] || null;
+      const item = results[0][0] || null;
+      if (item && item.itemImageFileName) {
+        const imagePath = path.join(__dirname, '../Uploads', item.itemImageFileName);
+        try {
+          const imageData = await fs.readFile(imagePath, { encoding: 'base64' });
+          item.itemImage = `data:image/jpeg;base64,${imageData}`;
+        } catch (err) {
+          console.error(`Failed to read image ${item.itemImageFileName}:`, err);
+          item.itemImage = null;
+        }
+      }
+
+      return item;
     } catch (err) {
       console.error('getItemById error:', err);
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
+
+  // Get image filename by Item ID
+  static async getImageFilenameById(id) {
+    try {
+      const pool = await poolPromise;
+
+      const queryParams = [
+        'SELECT',
+        id,
+        null, null, null, null, null, null, null, null
+      ];
+
+      const [results] = await pool.query(
+        'CALL SP_ManageItem(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
+        queryParams
+      );
+
+      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
+
+      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
+        throw new Error('Output parameters missing from SP_ManageItem');
+      }
+
+      if (output[0].p_Result !== 1) {
+        throw new Error(output[0].p_Message || 'Item not found');
+      }
+
+      const item = results[0][0] || null;
+      return item ? item.itemImageFileName : null;
+    } catch (err) {
+      console.error('getImageFilenameById error:', err);
       throw new Error(`Database error: ${err.message}`);
     }
   }
@@ -197,29 +238,24 @@ class ItemModel {
         data.itemCode,
         data.itemName,
         data.certificationId,
-        data.itemImage,
+        null,
         data.itemImageFileName,
         data.itemGroupId,
         data.defaultUomId,
         data.createdById
       ];
 
-      // Log query parameters
       console.log('updateItem params:', queryParams);
 
-      // Call SP_ManageItem
       const [results] = await pool.query(
         'CALL SP_ManageItem(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
-      // Log results
       console.log('updateItem results:', JSON.stringify(results, null, 2));
 
-      // Fetch output parameters
       const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
 
-      // Log output
       console.log('updateItem output:', JSON.stringify(output, null, 2));
 
       if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
@@ -247,32 +283,20 @@ class ItemModel {
       const queryParams = [
         'DELETE',
         id,
-        null, // p_ItemCode
-        null, // p_ItemName
-        null, // p_CertificationID
-        null, // p_ItemImage
-        null, // p_ItemImageFileName
-        null, // p_ItemGroupID
-        null, // p_DefaultUOMID
-        createdById
+        null, null, null, null, null, null, null, createdById
       ];
 
-      // Log query parameters
       console.log('deleteItem params:', queryParams);
 
-      // Call SP_ManageItem
       const [results] = await pool.query(
         'CALL SP_ManageItem(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
-      // Log results
       console.log('deleteItem results:', JSON.stringify(results, null, 2));
 
-      // Fetch output parameters
       const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
 
-      // Log output
       console.log('deleteItem output:', JSON.stringify(output, null, 2));
 
       if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
@@ -283,11 +307,71 @@ class ItemModel {
         throw new Error(output[0].p_Message || 'Failed to delete Item');
       }
 
+      const item = await ItemModel.getItemById(id);
+      if (item && item.itemImageFileName) {
+        const imagePath = path.join(__dirname, '../Uploads', item.itemImageFileName);
+        try {
+          await fs.unlink(imagePath);
+        } catch (err) {
+          console.error(`Failed to delete image ${item.itemImageFileName}:`, err);
+        }
+      }
+
       return {
         message: output[0].p_Message
       };
     } catch (err) {
       console.error('deleteItem error:', err);
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
+
+  // Get image filename by Item ID
+  static async getImageFilenameById(id) {
+    try {
+      const pool = await poolPromise;
+
+      const queryParams = [
+        'SELECT',
+        id,
+        null, null, null, null, null, null, null, null
+      ];
+
+      console.log('getImageFilenameById params:', queryParams); // Debug log
+
+      const [results] = await pool.query(
+        'CALL SP_ManageItem(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
+        queryParams
+      );
+
+      console.log('getImageFilenameById raw results:', JSON.stringify(results, null, 2)); // Debug log
+
+      // Handle multiple result sets if present
+      let item = null;
+      for (const result of results) {
+        if (result.length > 0) {
+          item = result[0];
+          break;
+        }
+      }
+
+      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
+
+      console.log('getImageFilenameById output:', JSON.stringify(output, null, 2)); // Debug log
+
+      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
+        throw new Error('Output parameters missing from SP_ManageItem');
+      }
+
+      if (output[0].p_Result !== 1) {
+        console.log('Stored procedure failed:', output[0].p_Message); // Debug log
+        throw new Error(output[0].p_Message || 'Item not found');
+      }
+
+      console.log('Parsed item data:', item); // Debug log
+      return item ? item.itemImageFileName : null;
+    } catch (err) {
+      console.error('getImageFilenameById error:', err);
       throw new Error(`Database error: ${err.message}`);
     }
   }
