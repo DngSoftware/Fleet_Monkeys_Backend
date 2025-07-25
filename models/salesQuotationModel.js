@@ -52,11 +52,13 @@ class SalesQuotationModel {
       ];
 
       const [result] = await pool.query(
-        'CALL sp_getallsalesquotation(?, ?, ?, ?, ?, ?, ?, ?, ?, @p_totalrecords)',
+        `CALL sp_getallsalesquotation(?, ?, ?, ?, ?, ?, ?, ?, ?, @p_totalrecords)`,
         queryParams
       );
 
-      const [[outParams]] = await pool.query('SELECT @p_totalrecords AS totalrecords');
+      const [[outParams]] = await pool.query(
+        `SELECT @p_totalrecords AS totalrecords`
+      );
 
       if (outParams.totalrecords === -1) {
         throw new Error('Error retrieving Sales Quotations');
@@ -117,12 +119,15 @@ class SalesQuotationModel {
       ];
 
       const [result] = await pool.query(
-        'CALL SP_ManageSalesQuotation(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewSalesQuotationID)',
+        `CALL SP_ManageSalesQuotation(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewSalesQuotationID)`,
         queryParams
       );
 
       const [[outParams]] = await pool.query(
-        'SELECT @p_Result AS result, @p_Message AS message, @p_NewSalesQuotationID AS newsalesquotationid'
+        `SELECT 
+           @p_Result AS result,
+           @p_Message AS message,
+           @p_NewSalesQuotationID AS salesquotationid`
       );
 
       if (outParams.result !== 1) {
@@ -130,7 +135,7 @@ class SalesQuotationModel {
       }
 
       return {
-        newsalesquotationid: outParams.newsalesquotationid,
+        salesquotationid: outParams.salesquotationid,
         message: outParams.message
       };
     } catch (err) {
@@ -180,12 +185,15 @@ class SalesQuotationModel {
       ];
 
       const [result] = await pool.query(
-        'CALL SP_ManageSalesQuotation(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewSalesQuotationID)',
+        `CALL SP_ManageSalesQuotation(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewSalesQuotationID)`,
         queryParams
       );
 
       const [[outParams]] = await pool.query(
-        'SELECT @p_Result AS result, @p_Message AS message, @p_NewSalesQuotationID AS newsalesquotationid'
+        `SELECT 
+           @p_Result AS result,
+           @p_Message AS message,
+           @p_NewSalesQuotationID AS salesquotationid`
       );
 
       if (outParams.result !== 1) {
@@ -209,7 +217,7 @@ class SalesQuotationModel {
         // If supplierquotationparcelids are provided, populate TempSelectedParcels
         if (data.supplierquotationparcelid && Array.isArray(data.supplierquotationparcelid) && data.supplierquotationparcelid.length > 0) {
           // Drop and recreate TempSelectedParcels
-          await connection.query('DROP TEMPORARY TABLE IF EXISTS TempSelectedParcels');
+          await connection.query(`DROP TEMPORARY TABLE IF EXISTS TempSelectedParcels`);
           await connection.query(`
             CREATE TEMPORARY TABLE TempSelectedParcels (
               supplierquotationparcelid INT,
@@ -265,7 +273,14 @@ class SalesQuotationModel {
               AND sq.isdeleted = 0
               AND sqp.isdeleted = 0
           `;
-          await connection.query(insertQuery, [data.supplierquotationparcelid, parseInt(id)]);
+          const [insertResult] = await connection.query(insertQuery, [data.supplierquotationparcelid, parseInt(id)]);
+          console.log('Rows inserted into TempSelectedParcels:', insertResult.affectedRows);
+
+          // Validate that parcels were inserted
+          if (insertResult.affectedRows === 0) {
+            await connection.rollback();
+            throw new Error('No valid supplier quotation parcels found for the given salesrfqid');
+          }
         }
 
         const queryParams = [
@@ -304,25 +319,199 @@ class SalesQuotationModel {
           null
         ];
 
+        console.log('Calling SP_ManageSalesQuotation with params:', queryParams);
         const [result] = await connection.query(
-          'CALL SP_ManageSalesQuotation(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewSalesQuotationID)',
+          `CALL SP_ManageSalesQuotation(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewSalesQuotationID)`,
           queryParams
         );
 
         const [[outParams]] = await connection.query(
-          'SELECT @p_Result AS result, @p_Message AS message'
+          `SELECT 
+             @p_Result AS result,
+             @p_Message AS message`
         );
+        console.log('Stored procedure output:', outParams);
 
         if (outParams.result !== 1) {
           throw new Error(outParams.message || 'Failed to update Sales Quotation');
         }
 
+        // Fallback: Update existing records in dbo_tblsalesquotationparcel
+        if (data.supplierquotationparcelid && Array.isArray(data.supplierquotationparcelid) && data.supplierquotationparcelid.length > 0) {
+          // Get existing SalesQuotationParcelIDs for the SalesQuotationID
+          const [existingParcels] = await connection.query(`
+            SELECT 
+              SalesQuotationParcelID, 
+              ItemID 
+            FROM 
+              dbo_tblsalesquotationparcel 
+            WHERE 
+              SalesQuotationID = ? 
+              AND 
+              IsDeleted = 0
+          `, [parseInt(id)]);
+
+          if (existingParcels.length === 0) {
+            console.log('No existing parcels found for SalesQuotationID:', id);
+            // If no existing parcels, insert new ones
+            const insertParcelQuery = `
+              INSERT INTO dbo_tblsalesquotationparcel (
+                SalesQuotationID,
+                SupplierQuotationParcelID,
+                ItemID,
+                ItemQuantity,
+                UOMID,
+                CountryOfOriginID,
+                SupplierRate,
+                SupplierAmount,
+                SalesRate,
+                SalesAmount,
+                Profit,
+                CreatedByID,
+                CreatedDateTime,
+                IsDeleted
+              )
+              SELECT 
+                ?,
+                sqp.supplierquotationparcelid,
+                sqp.itemid,
+                sqp.itemquantity,
+                sqp.uomid,
+                sqp.countryoforiginid,
+                sqp.rate,
+                sqp.amount,
+                sqp.rate,
+                sqp.amount,
+                0,
+                ?,
+                NOW(),
+                0
+              FROM 
+                dbo_tblsupplierquotationparcel sqp 
+              WHERE 
+                sqp.supplierquotationparcelid = ? 
+                AND 
+                sqp.isdeleted = 0
+            `;
+            for (const parcelId of data.supplierquotationparcelid) {
+              const [insertResult] = await connection.query(insertParcelQuery, [parseInt(id), data.createdbyid, parseInt(parcelId)]);
+              console.log(`Inserted new parcel for SupplierQuotationParcelID: ${parcelId}, Rows affected: ${insertResult.affectedRows}`);
+            }
+          } else {
+            // Update existing parcels, ensuring unique constraint on (SalesQuotationID, ItemID)
+            if (data.supplierquotationparcelid.length === 1) {
+              const newParcelId = data.supplierquotationparcelid[0];
+              // Get ItemID for the new SupplierQuotationParcelID
+              const [newParcelData] = await connection.query(`
+                SELECT 
+                  itemid 
+                FROM 
+                  dbo_tblsupplierquotationparcel 
+                WHERE 
+                  supplierquotationparcelid = ? 
+                  AND 
+                  isdeleted = 0
+              `, [parseInt(newParcelId)]);
+
+              if (!newParcelData.length) {
+                throw new Error(`Invalid SupplierQuotationParcelID: ${newParcelId}`);
+              }
+
+              const newItemId = newParcelData[0].itemid;
+              // Check for unique constraint violation
+              const [conflictingParcels] = await connection.query(`
+                SELECT 
+                  SalesQuotationParcelID 
+                FROM 
+                  dbo_tblsalesquotationparcel 
+                WHERE 
+                  SalesQuotationID = ? 
+                  AND 
+                  ItemID = ? 
+                  AND 
+                  IsDeleted = 0
+              `, [parseInt(id), newItemId]);
+
+              if (conflictingParcels.length > 0) {
+                // Update the first conflicting parcel
+                const updateQuery = `
+                  UPDATE 
+                    dbo_tblsalesquotationparcel sq
+                  INNER JOIN 
+                    dbo_tblsupplierquotationparcel sqp 
+                    ON sqp.supplierquotationparcelid = ?
+                  SET 
+                    sq.SupplierQuotationParcelID = ?,
+                    sq.ItemID = sqp.itemid,
+                    sq.ItemQuantity = sqp.itemquantity,
+                    sq.UOMID = sqp.uomid,
+                    sq.CountryOfOriginID = sqp.countryoforiginid,
+                    sq.SupplierRate = sqp.rate,
+                    sq.SupplierAmount = sqp.amount,
+                    sq.SalesRate = sqp.rate,
+                    sq.SalesAmount = sqp.amount,
+                    sq.Profit = 0,
+                    sq.CreatedByID = ?,
+                    sq.CreatedDateTime = NOW()
+                  WHERE 
+                    sq.SalesQuotationParcelID = ?
+                    AND 
+                    sq.IsDeleted = 0
+                `;
+                const [updateResult] = await connection.query(updateQuery, [
+                  parseInt(newParcelId),
+                  parseInt(newParcelId),
+                  data.createdbyid,
+                  conflictingParcels[0].SalesQuotationParcelID
+                ]);
+                console.log(`Updated SalesQuotationParcelID: ${conflictingParcels[0].SalesQuotationParcelID} with SupplierQuotationParcelID: ${newParcelId}, Rows affected: ${updateResult.affectedRows}`);
+              } else {
+                // Update the first existing parcel if no conflict
+                const updateQuery = `
+                  UPDATE 
+                    dbo_tblsalesquotationparcel sq
+                  INNER JOIN 
+                    dbo_tblsupplierquotationparcel sqp 
+                    ON sqp.supplierquotationparcelid = ?
+                  SET 
+                    sq.SupplierQuotationParcelID = ?,
+                    sq.ItemID = sqp.itemid,
+                    sq.ItemQuantity = sqp.itemquantity,
+                    sq.UOMID = sqp.uomid,
+                    sq.CountryOfOriginID = sqp.countryoforiginid,
+                    sq.SupplierRate = sqp.rate,
+                    sq.SupplierAmount = sqp.amount,
+                    sq.SalesRate = sqp.rate,
+                    sq.SalesAmount = sqp.amount,
+                    sq.Profit = 0,
+                    sq.CreatedByID = ?,
+                    sq.CreatedDateTime = NOW()
+                  WHERE 
+                    sq.SalesQuotationParcelID = ?
+                    AND 
+                    sq.IsDeleted = 0
+                `;
+                const [updateResult] = await connection.query(updateQuery, [
+                  parseInt(newParcelId),
+                  parseInt(newParcelId),
+                  data.createdbyid,
+                  existingParcels[0].SalesQuotationParcelID
+                ]);
+                console.log(`Updated SalesQuotationParcelID: ${existingParcels[0].SalesQuotationParcelID} with SupplierQuotationParcelID: ${newParcelId}, Rows affected: ${updateResult.affectedRows}`);
+              }
+            } else {
+              throw new Error('Multiple SupplierQuotationParcelIDs not supported for update. Please specify a single parcel ID.');
+            }
+          }
+        }
+
         await connection.commit();
         return {
-          message: outParams.message
+          message: outParams.message || 'Sales Quotation updated successfully.'
         };
       } catch (err) {
         await connection.rollback();
+        console.error('Transaction rolled back due to:', err);
         throw err;
       } finally {
         connection.release();
@@ -373,12 +562,14 @@ class SalesQuotationModel {
       ];
 
       const [result] = await pool.query(
-        'CALL SP_ManageSalesQuotation(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewSalesQuotationID)',
+        `CALL SP_ManageSalesQuotation(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewSalesQuotationID)`,
         queryParams
       );
 
       const [[outParams]] = await pool.query(
-        'SELECT @p_Result AS result, @p_Message AS message'
+        `SELECT 
+           @p_Result AS result,
+           @p_Message AS message`
       );
 
       if (outParams.result !== 1) {
