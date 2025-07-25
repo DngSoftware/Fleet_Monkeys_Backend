@@ -72,6 +72,8 @@ const customerAddressRoutes = require('./routes/customerAddressRoutes');
 const supplierAddressRoutes = require('./routes/supplierAddressRoutes');
 const ShippingParcelRoutes = require('./routes/ShippingParcelRoutes');
 const repackagedPalletOrTobaccoRoutes = require('./routes/repackagedPalletOrTobaccoRoutes');
+const transactionRoutes = require('./routes/transactionsRoutes');
+
 
 
 const app = express();
@@ -225,7 +227,8 @@ async function startServer() {
       ['/api/customerAddress', customerAddressRoutes],
       ['/api/supplierAddress', supplierAddressRoutes],
       ['/api/ShippingParcel', ShippingParcelRoutes],
-      ['/api/repackagedPalletOrTobacco', repackagedPalletOrTobaccoRoutes]
+      ['/api/repackagedPalletOrTobacco', repackagedPalletOrTobaccoRoutes],
+      ['/api/transactions', transactionRoutes]
     ];
 
     routes.forEach(([path, route]) => {
@@ -246,7 +249,7 @@ async function startServer() {
     });
 
     // dummy
-    const PORT = process.env.PORT || 7000;
+    const PORT = process.env.PORT || 7001;
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
     });
@@ -310,3 +313,8 @@ module.exports = {
     }
   }
 };
+
+
+
+
+
