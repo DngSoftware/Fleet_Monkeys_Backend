@@ -76,7 +76,7 @@ class SalesInvoiceModel {
         throw new Error('Invalid salesInvoiceId: must be an integer');
       }
 
-      // Call SP_ManageSalesInvoiceDEV with SELECT action
+      // Call SP_ManageSalesInvoice with SELECT action
       const queryParams = [
         'SELECT',
         salesInvoiceId,
@@ -104,12 +104,18 @@ class SalesInvoiceModel {
         null, // p_TaxRate
         null, // p_TaxTotal
         null, // p_OriginWarehouseAddressID
-        null  // p_DestinationWarehouseAddressID
+        null, // p_DestinationWarehouseAddressID
+        null, // p_BilledBy
+        null, // p_BilledTo
+        null, // p_Status
+        null, // p_OriginWarehouseID
+        null, // p_DestinationWarehouseID
+        null  // p_DeferralAccount
       ];
 
-      // Call the stored procedure with a user-defined variable for OUT p_ErrorMessage
+      // Call the stored procedure
       await connection.query(
-        'CALL SP_ManageSalesInvoiceDEV(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_ErrorMessage)',
+        'CALL SP_ManageSalesInvoice(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_ErrorMessage)',
         queryParams
       );
 
@@ -181,7 +187,7 @@ class SalesInvoiceModel {
         throw new Error('Either SalesOrderID or SalesRFQID is required');
       }
 
-    const queryParams = [
+      const queryParams = [
         'INSERT',
         null, // p_SalesInvoiceID
         data.pInvoiceId || null,
@@ -199,20 +205,26 @@ class SalesInvoiceModel {
         data.collectFromSupplierYN || 0,
         data.externalRefNo || null,
         data.externalSupplierId || null,
-        data.isPaid || 0, // Added missing parameter
+        data.isPaid || 0,
         data.formCompletedYN || 0,
-        data.fileName || null, // Added missing parameter
-        data.fileContent || null, // Added missing parameter
+        data.fileName || null,
+        data.fileContent || null,
         data.copyTaxesFromPInvoice || 0,
         data.taxChargesTypeId || null,
         data.taxRate || null,
         data.taxTotal || null,
         data.originWarehouseAddressId || null,
-        data.destinationWarehouseAddressId || null
+        data.destinationWarehouseAddressId || null,
+        data.billedBy || null,
+        data.billedTo || null,
+        data.status || null,
+        data.originWarehouseId || null, // Added
+        data.destinationWarehouseId || null, // Added
+        data.deferralAccount || null // Added
       ];
 
       const [result] = await pool.query(
-        'CALL SP_ManageSalesInvoice(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_ErrorMessage)',
+        'CALL SP_ManageSalesInvoice(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_ErrorMessage)',
         queryParams
       );
 
@@ -273,6 +285,29 @@ class SalesInvoiceModel {
       return { exists: true, status: result[0].Status };
     } catch (error) {
       throw new Error(`Error checking SalesInvoice status: ${error.message}`);
+    }
+  }
+
+  // Helper: Insert approval record
+  static async #insertSalesInvoiceApproval(connection, approvalData) {
+    try {
+      const query = `
+        INSERT INTO dbo_tblsalesinvoiceapproval (
+         SalesInvoiceID, ApproverID, ApprovedYN, ApproverDateTime, CreatedByID, CreatedDateTime, IsDeleted
+        ) VALUES (
+          ?, ?, ?, NOW(), ?, NOW(), 0
+        );
+      `;
+      const [result] = await connection.query(query, [
+        parseInt(approvalData.SalesInvoiceID),
+        parseInt(approvalData.ApproverID),
+        1,
+        parseInt(approvalData.ApproverID)
+      ]);
+      console.log(`Insert Debug: SalesInvoiceID=${approvalData.SalesInvoiceID}, ApproverID=${approvalData.ApproverID}, InsertedID=${result.insertId}`);
+      return { success: true, message: 'Approval record inserted successfully.', insertId: result.insertId };
+    } catch (error) {
+      throw new Error(`Error inserting Sales Invoice approval: ${error.message}`);
     }
   }
 
@@ -418,29 +453,7 @@ class SalesInvoiceModel {
     }
   }
 
-  // Helper: Insert approval record
-  static async #insertSalesInvoiceApproval(connection, approvalData) {
-    try {
-      const query = `
-        INSERT INTO dbo_tblsalesinvoiceapproval (
-         SalesInvoiceID, ApproverID, ApprovedYN, ApproverDateTime, CreatedByID, CreatedDateTime, IsDeleted
-        ) VALUES (
-          ?, ?, ?, NOW(), ?, NOW(), 0
-        );
-      `;
-      const [result] = await connection.query(query, [
-        parseInt(approvalData.SalesInvoiceID),
-        parseInt(approvalData.ApproverID),
-        1,
-        parseInt(approvalData.ApproverID)
-      ]);
-      console.log(`Insert Debug: SalesInvoiceID=${approvalData.SalesInvoiceID}, ApproverID=${approvalData.ApproverID}, InsertedID=${result.insertId}`);
-      return { success: true, message: 'Approval record inserted successfully.', insertId: result.insertId };
-    } catch (error) {
-      throw new Error(`Error inserting Sales Invoice approval: ${error.message}`);
-    }
-  }
-     static async getSalesInvoiceApprovalStatus(SalesInvoiceID) {
+  static async getSalesInvoiceApprovalStatus(SalesInvoiceID) {
     try {
       const pool = await poolPromise;
       const formName = 'Sales Invoice';
@@ -451,7 +464,7 @@ class SalesInvoiceModel {
         [formName]
       );
       if (!form.length) {
-        throw new Error('Invalid FormID for Purchase Invoice');
+        throw new Error('Invalid FormID for Sales Invoice');
       }
       const formID = form[0].FormID;
 
@@ -506,7 +519,6 @@ class SalesInvoiceModel {
       throw new Error(`Error retrieving approval status: ${error.message}`);
     }
   }
-
 }
 
 module.exports = SalesInvoiceModel;
