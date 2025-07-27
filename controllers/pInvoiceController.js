@@ -55,7 +55,7 @@ class PInvoiceController {
     try {
       const { id } = req.params;
       const pInvoice = await PInvoiceModel.getPInvoiceById(parseInt(id));
-      if (!pInvoice) {
+      if (!pInvoice.invoice) {
         return res.status(404).json({
           success: false,
           message: 'Purchase Invoice not found.',
@@ -65,7 +65,11 @@ class PInvoiceController {
       res.status(200).json({
         success: true,
         message: 'Purchase Invoice retrieved successfully.',
-        data: pInvoice
+        data: {
+          invoice: pInvoice.invoice,
+          parcels: pInvoice.parcels,
+          taxes: pInvoice.taxes
+        }
       });
     } catch (err) {
       console.error('Error in getPInvoiceById:', err);
@@ -95,6 +99,29 @@ class PInvoiceController {
         return res.status(400).json({
           success: false,
           message: 'POID is required.',
+          data: null
+        });
+      }
+
+      // Validate new fields (optional, but ensure they are numbers or strings as expected)
+      if (data.originWarehouseID && isNaN(parseInt(data.originWarehouseID))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid originWarehouseID.',
+          data: null
+        });
+      }
+      if (data.destinationWarehouseID && isNaN(parseInt(data.destinationWarehouseID))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid destinationWarehouseID.',
+          data: null
+        });
+      }
+      if (data.deferralAccount && typeof data.deferralAccount !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid deferralAccount.',
           data: null
         });
       }
@@ -129,6 +156,29 @@ class PInvoiceController {
       }
 
       const data = req.body;
+      // Validate new fields (optional)
+      if (data.originWarehouseID && isNaN(parseInt(data.originWarehouseID))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid originWarehouseID.',
+          data: null
+        });
+      }
+      if (data.destinationWarehouseID && isNaN(parseInt(data.destinationWarehouseID))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid destinationWarehouseID.',
+          data: null
+        });
+      }
+      if (data.deferralAccount && typeof data.deferralAccount !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid deferralAccount.',
+          data: null
+        });
+      }
+
       const result = await PInvoiceModel.updatePInvoice(parseInt(id), data, userId);
       res.status(200).json({
         success: true,
@@ -174,7 +224,7 @@ class PInvoiceController {
     }
   }
 
-   // Approve a Sales Quotation
+  // Approve a Purchase Invoice
   static async approvePInvoice(req, res) {
     try {
       const { PInvoiceID } = req.body;
@@ -213,13 +263,13 @@ class PInvoiceController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        POID: null,
-        newPOID: null
+        PInvoiceID: null,
+        newPInvoiceID: null
       });
     }
   }
 
-       static async getPInvoiceApprovalStatus(req, res) {
+  static async getPInvoiceApprovalStatus(req, res) {
     try {
       const PInvoiceID = parseInt(req.params.id);
       if (isNaN(PInvoiceID)) {
