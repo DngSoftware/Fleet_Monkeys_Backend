@@ -31,13 +31,14 @@ class ShippingParcelModel {
         parcelData.ParcelReceivedBy || null,
         parcelData.ParcelDeliveredDatetime ? new Date(parcelData.ParcelDeliveredDatetime) : null,
         parcelData.Signature || null,
-        parcelData.SelectedYN || null,
+        parcelData.ReceivedYN != null ? parcelData.ReceivedYN : 0,
+        parcelData.CollectionLoadID ? parseInt(parcelData.CollectionLoadID) : null,
         parcelData.CreatedByID ? parseInt(parcelData.CreatedByID) : null,
-        parcelData.ChangedBy || null,
+        parcelData.ChangedBy || 'NA',
       ];
 
       const [result] = await pool.query(
-        'CALL SP_ManageShippingParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
+        'CALL SP_ManageShippingParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
@@ -47,7 +48,7 @@ class ShippingParcelModel {
 
       return {
         success: outParams.result === 'SUCCESS',
-        message: outParams.message || (outParams.result === 'SUCCESS' ? `${action} operation successful` : 'Operation failed'),
+        message: outParams.message || (outParams.result === 'SUCCESS' ? `${action} operation completed` : 'Operation failed'),
         data: action === 'SELECT' ? result[0]?.[0] || null : null,
         parcelId: parcelData.ParcelID,
         newParcelId: action === 'INSERT' ? parseInt(outParams.message.match(/ParcelID: (\d+)/)?.[1]) || null : null,
@@ -63,6 +64,37 @@ class ShippingParcelModel {
     const errors = [];
 
     if (action === 'INSERT' || action === 'UPDATE') {
+      // Validate required fields
+      if (!parcelData.CreatedByID) {
+        errors.push('CreatedByID is required');
+      }
+
+      // Validate empty strings
+      if (parcelData.ParcelString && parcelData.ParcelString.trim().length === 0) {
+        errors.push('ParcelString cannot be empty if provided');
+      }
+      if (parcelData.QRCodeString && parcelData.QRCodeString.trim().length === 0) {
+        errors.push('QRCodeString cannot be empty if provided');
+      }
+      if (parcelData.ShippingAndHandellingRequirement && parcelData.ShippingAndHandellingRequirement.trim().length === 0) {
+        errors.push('ShippingAndHandellingRequirement cannot be empty if provided');
+      }
+      if (parcelData.Notes && parcelData.Notes.trim().length === 0) {
+        errors.push('Notes cannot be empty if provided');
+      }
+      if (parcelData.ParcelReceivedBy && parcelData.ParcelReceivedBy.trim().length === 0) {
+        errors.push('ParcelReceivedBy cannot be empty if provided');
+      }
+
+      // Validate negative values
+      if (parcelData.Volume != null && parcelData.Volume < 0) {
+        errors.push('Volume cannot be negative');
+      }
+      if (parcelData.Weight != null && parcelData.Weight < 0) {
+        errors.push('Weight cannot be negative');
+      }
+
+      // Foreign key checks
       if (parcelData.ParentParcelID) {
         const [parentCheck] = await pool.query(
           'SELECT 1 FROM dbo_tblshippingparcel WHERE ParcelID = ?',
@@ -140,32 +172,32 @@ class ShippingParcelModel {
         );
         if (createdByCheck.length === 0) errors.push(`CreatedByID ${parcelData.CreatedByID} does not exist`);
       }
+      if (parcelData.CollectionLoadID) {
+        const [collectionLoadCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblcollectionload WHERE CollectionLoadID = ?',
+          [parseInt(parcelData.CollectionLoadID)]
+        );
+        if (collectionLoadCheck.length === 0) errors.push(`CollectionLoadID ${parcelData.CollectionLoadID} does not exist`);
+      }
     }
 
-    if (action === 'DELETE' && parcelData.CreatedByID) {
-      const [createdByCheck] = await pool.query(
-        'SELECT 1 FROM dbo_tblperson WHERE PersonID = ?',
-        [parseInt(parcelData.CreatedByID)]
-      );
-      if (createdByCheck.length === 0) errors.push(`CreatedByID ${parcelData.CreatedByID} does not exist`);
+    if (action === 'DELETE') {
+      if (!parcelData.CreatedByID) {
+        errors.push('CreatedByID is required');
+      }
+      if (parcelData.CreatedByID) {
+        const [createdByCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblperson WHERE PersonID = ?',
+          [parseInt(parcelData.CreatedByID)]
+        );
+        if (createdByCheck.length === 0) errors.push(`CreatedByID ${parcelData.CreatedByID} does not exist`);
+      }
     }
 
     return errors.length > 0 ? errors.join('; ') : null;
   }
 
   static async createShippingParcel(parcelData) {
-    const requiredFields = ['CreatedByID'];
-    const missingFields = requiredFields.filter(field => !parcelData[field]);
-    if (missingFields.length > 0) {
-      return {
-        success: false,
-        message: `${missingFields.join(', ')} are required`,
-        data: null,
-        parcelId: null,
-        newParcelId: null,
-      };
-    }
-
     const fkErrors = await this.#validateForeignKeys(parcelData, 'INSERT');
     if (fkErrors) {
       return {

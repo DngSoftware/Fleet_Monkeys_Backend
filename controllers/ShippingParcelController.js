@@ -27,9 +27,21 @@ class ShippingParcelController {
         ParcelReceivedBy: req.body.ParcelReceivedBy,
         ParcelDeliveredDatetime: req.body.ParcelDeliveredDatetime,
         Signature: req.body.Signature,
+        ReceivedYN: req.body.ReceivedYN != null ? Boolean(req.body.ReceivedYN) : null,
+        CollectionLoadID: req.body.CollectionLoadID ? parseInt(req.body.CollectionLoadID) : null,
         CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
         ChangedBy: req.body.ChangedBy || req.user.username || 'NA',
       };
+
+      if (!parcelData.CreatedByID) {
+        return res.status(400).json({
+          success: false,
+          message: 'CreatedByID is required',
+          data: null,
+          parcelId: null,
+          newParcelId: null,
+        });
+      }
 
       const result = await ShippingParcelModel.createShippingParcel(parcelData);
       return res.status(result.success ? 201 : 400).json(result);
@@ -83,9 +95,21 @@ class ShippingParcelController {
         ParcelReceivedBy: req.body.ParcelReceivedBy,
         ParcelDeliveredDatetime: req.body.ParcelDeliveredDatetime,
         Signature: req.body.Signature,
+        ReceivedYN: req.body.ReceivedYN != null ? Boolean(req.body.ReceivedYN) : null,
+        CollectionLoadID: req.body.CollectionLoadID ? parseInt(req.body.CollectionLoadID) : null,
         CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
         ChangedBy: req.body.ChangedBy || req.user.username || 'NA',
       };
+
+      if (!parcelData.CreatedByID) {
+        return res.status(400).json({
+          success: false,
+          message: 'CreatedByID is required',
+          data: null,
+          parcelId: parcelId,
+          newParcelId: null,
+        });
+      }
 
       const result = await ShippingParcelModel.updateShippingParcel(parcelData);
       return res.status(result.success ? 200 : 400).json(result);
@@ -119,6 +143,16 @@ class ShippingParcelController {
         CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
         ChangedBy: req.body.ChangedBy || req.user.username || 'NA',
       };
+
+      if (!parcelData.CreatedByID) {
+        return res.status(400).json({
+          success: false,
+          message: 'CreatedByID is required',
+          data: null,
+          parcelId: parcelId,
+          newParcelId: null,
+        });
+      }
 
       const result = await ShippingParcelModel.deleteShippingParcel(parcelData);
       return res.status(result.success ? 200 : 400).json(result);
