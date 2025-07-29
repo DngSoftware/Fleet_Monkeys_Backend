@@ -7,14 +7,14 @@ class PInvoiceAdjustmentModel {
       const pool = await poolPromise;
 
       // Validate input parameters
-      if (!Number.isInteger(salesOrderId) || salesOrderId <= 0) {
-        throw new Error('Invalid salesOrderId: must be a positive integer');
+      if (salesOrderId == null || !Number.isInteger(salesOrderId) || salesOrderId <= 0) {
+        throw new Error('Invalid salesOrderId: must be a positive integer and not null');
       }
-      if (!Number.isInteger(supplierId) || supplierId <= 0) {
-        throw new Error('Invalid supplierId: must be a positive integer');
+      if (supplierId == null || !Number.isInteger(supplierId) || supplierId <= 0) {
+        throw new Error('Invalid supplierId: must be a positive integer and not null');
       }
-      if (!Number.isInteger(createdById) || createdById <= 0) {
-        throw new Error('Invalid createdById: must be a positive integer');
+      if (createdById == null || !Number.isInteger(createdById) || createdById <= 0) {
+        throw new Error('Invalid createdById: must be a positive integer and not null');
       }
 
       const queryParams = [
@@ -44,6 +44,12 @@ class PInvoiceAdjustmentModel {
       const errorMessage = err.sqlState
         ? `Database error: ${err.message} (SQLSTATE: ${err.sqlState})`
         : `Database error: ${err.message}`;
+      // Log error for debugging (avoid logging sensitive data in production)
+      console.error(`Error in adjustPInvoice: ${errorMessage}`, {
+        salesOrderId,
+        supplierId,
+        createdById
+      });
       throw new Error(errorMessage);
     }
   }

@@ -8,26 +8,26 @@ class PInvoiceAdjustmentController {
       const createdById = req.user && req.user.personId ? parseInt(req.user.personId) : null;
 
       // Validate authentication
-      if (!createdById) {
+      if (!createdById || !Number.isInteger(createdById) || createdById <= 0) {
         return res.status(401).json({
           success: false,
-          message: 'Unauthorized: User ID not found in authentication context.',
+          message: 'Unauthorized: Valid user ID not found in authentication context.',
           data: null
         });
       }
 
       // Validate required fields
-      if (!salesOrderId) {
+      if (salesOrderId == null || isNaN(parseInt(salesOrderId))) {
         return res.status(400).json({
           success: false,
-          message: 'salesOrderId is required.',
+          message: 'salesOrderId is required and must be a valid integer.',
           data: null
         });
       }
-      if (!supplierId) {
+      if (supplierId == null || isNaN(parseInt(supplierId))) {
         return res.status(400).json({
           success: false,
-          message: 'supplierId is required.',
+          message: 'supplierId is required and must be a valid integer.',
           data: null
         });
       }
@@ -45,7 +45,8 @@ class PInvoiceAdjustmentController {
       });
     } catch (err) {
       console.error('Error in adjustPInvoice:', err);
-      res.status(500).json({
+      const statusCode = err.message.includes('Invalid') ? 400 : 500;
+      res.status(statusCode).json({
         success: false,
         message: `Server error: ${err.message}`,
         data: null
