@@ -26,4 +26,10 @@ router.post('/approve', authMiddleware, SalesQuotationController.approveSalesQuo
 // Get Sales Quotation approval status (requires read permission on Sales Quotation table)
 router.get('/:id/approval-status', authMiddleware, tableAccessMiddleware, permissionMiddleware('read'), SalesQuotationController.getSalesQuotationApprovalStatus);
 
+router.get(
+  '/:salesrfqid/parcels',
+  authMiddleware,
+  SalesQuotationController.getSupplierQuotationParcels
+);
+
 module.exports = router;
