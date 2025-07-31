@@ -46,6 +46,9 @@ class ShippingParcelModel {
         'SELECT @p_Result AS result, @p_Message AS message'
       );
 
+      // Debug log to inspect stored procedure output
+      console.log(`Stored procedure output for ${action}:`, outParams);
+
       return {
         success: outParams.result === 'SUCCESS',
         message: outParams.message || (outParams.result === 'SUCCESS' ? `${action} operation completed` : 'Operation failed'),
@@ -146,7 +149,7 @@ class ShippingParcelModel {
       }
       if (parcelData.ParcelDimensionID) {
         const [dimensionCheck] = await pool.query(
-          'SELECT 1 FROM dbo_tblparceldimension WHERE ParcelDimensionID = ?',
+          'SELECT 1 FROM dbo_tblpinvoiceparcelpalletdimensions WHERE ParcelDimensionID = ?',
           [parseInt(parcelData.ParcelDimensionID)]
         );
         if (dimensionCheck.length === 0) errors.push(`ParcelDimensionID ${parcelData.ParcelDimensionID} does not exist`);
@@ -298,12 +301,70 @@ class ShippingParcelModel {
         success: true,
         message: 'Shipping parcels retrieved successfully.',
         data: result || [],
-        totalRecords: totalRecords || 0,
+        totallearningRecords: totalRecords || 0,
         parcelId: null,
         newParcelId: null,
       };
     } catch (error) {
       console.error('Database error in getAllShippingParcels:', error);
+      throw new Error(`Database error: ${error.message || 'Unknown error'}`);
+    }
+  }
+
+  static async getShippingParcelsBySalesQuotation(paginationData) {
+    try {
+      const pool = await poolPromise;
+
+      const salesQuotationId = parseInt(paginationData.SalesQuotationID);
+      const pageNumber = parseInt(paginationData.PageNumber) || 1;
+      const pageSize = parseInt(paginationData.PageSize) || 10;
+
+      if (isNaN(salesQuotationId)) {
+        throw new Error('Invalid SalesQuotationID');
+      }
+      if (pageNumber < 1) {
+        throw new Error('PageNumber must be greater than 0');
+      }
+      if (pageSize < 1 || pageSize > 100) {
+        throw new Error('PageSize must be between 1 and 100');
+      }
+
+      // Verify SalesQuotationID exists
+      const [quotationCheck] = await pool.query(
+        'SELECT 1 FROM dbo_tblsalesquotation WHERE SalesQuotationID = ?',
+        [salesQuotationId]
+      );
+      if (quotationCheck.length === 0) {
+        return {
+          success: false,
+          message: `SalesQuotationID ${salesQuotationId} does not exist`,
+          data: null,
+          totalRecords: 0,
+          parcelId: null,
+          newParcelId: null,
+        };
+      }
+
+      const [result] = await pool.query(
+        'SELECT * FROM dbo_tblshippingparcel WHERE IsDeleted = 0 AND SalesQuotationID = ? LIMIT ? OFFSET ?',
+        [salesQuotationId, pageSize, (pageNumber - 1) * pageSize]
+      );
+
+      const [[{ totalRecords }]] = await pool.query(
+        'SELECT COUNT(*) AS totalRecords FROM dbo_tblshippingparcel WHERE IsDeleted = 0 AND SalesQuotationID = ?',
+        [salesQuotationId]
+      );
+
+      return {
+        success: true,
+        message: 'Shipping parcels retrieved successfully.',
+        data: result || [],
+        totalRecords: totalRecords || 0,
+        parcelId: null,
+        newParcelId: null,
+      };
+    } catch (error) {
+      console.error('Database error in getShippingParcelsBySalesQuotation:', error);
       throw new Error(`Database error: ${error.message || 'Unknown error'}`);
     }
   }

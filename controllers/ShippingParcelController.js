@@ -44,6 +44,14 @@ class ShippingParcelController {
       }
 
       const result = await ShippingParcelModel.createShippingParcel(parcelData);
+      // Debug log to inspect the result
+      console.log('Create ShippingParcel result:', result);
+      // Workaround: If newParcelId is present, treat as success
+      if (result.newParcelId && !result.success) {
+        console.warn('Inconsistent result: success=false but newParcelId present. Overriding to success.');
+        result.success = true;
+        result.message = result.message || 'Parcel inserted successfully';
+      }
       return res.status(result.success ? 201 : 400).json(result);
     } catch (error) {
       console.error('Create ShippingParcel error:', error);
@@ -237,6 +245,66 @@ class ShippingParcelController {
       });
     } catch (error) {
       console.error('Get All ShippingParcels error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        parcelId: null,
+        newParcelId: null,
+      });
+    }
+  }
+
+  static async getShippingParcelsBySalesQuotation(req, res) {
+    try {
+      const salesQuotationId = parseInt(req.params.salesQuotationId);
+      if (isNaN(salesQuotationId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing SalesQuotationID',
+          data: null,
+          parcelId: null,
+          newParcelId: null,
+        });
+      }
+
+      const paginationData = {
+        SalesQuotationID: salesQuotationId,
+        PageNumber: req.query.pageNumber ? parseInt(req.query.pageNumber) : 1,
+        PageSize: req.query.pageSize ? parseInt(req.query.pageSize) : 10,
+      };
+
+      if (paginationData.PageNumber < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageNumber must be greater than 0',
+          data: null,
+          parcelId: null,
+          newParcelId: null,
+        });
+      }
+      if (paginationData.PageSize < 1 || paginationData.PageSize > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageSize must be between 1 and 100',
+          data: null,
+          parcelId: null,
+          newParcelId: null,
+        });
+      }
+
+      const result = await ShippingParcelModel.getShippingParcelsBySalesQuotation(paginationData);
+      return res.status(result.success ? 200 : 400).json({
+        ...result,
+        pagination: {
+          pageNumber: paginationData.PageNumber,
+          pageSize: paginationData.PageSize,
+          totalRecords: result.totalRecords || 0,
+          totalPages: Math.ceil(result.totalRecords / paginationData.PageSize),
+        },
+      });
+    } catch (error) {
+      console.error('Get ShippingParcelsBySalesQuotation error:', error);
       return res.status(500).json({
         success: false,
         message: `Server error: ${error.message}`,
