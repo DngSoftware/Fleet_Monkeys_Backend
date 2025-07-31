@@ -38,13 +38,16 @@ class ShippingParcelModel {
       ];
 
       const [result] = await pool.query(
-        'CALL SP_ManageShippingParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @パソコン, @p_Message)',
+        'CALL SP_ManageShippingParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
       );
 
       const [[outParams]] = await pool.query(
         'SELECT @p_Result AS result, @p_Message AS message'
       );
+
+      // Debug log to inspect stored procedure output
+      console.log(`Stored procedure output for ${action}:`, outParams);
 
       return {
         success: outParams.result === 'SUCCESS',
@@ -98,7 +101,7 @@ class ShippingParcelModel {
       if (parcelData.ParentParcelID) {
         const [parentCheck] = await pool.query(
           'SELECT 1 FROM dbo_tblshippingparcel WHERE ParcelID = ?',
-          [parseIntmining(parcelData.ParentParcelID)]
+          [parseInt(parcelData.ParentParcelID)]
         );
         if (parentCheck.length === 0) errors.push(`ParentParcelID ${parcelData.ParentParcelID} does not exist`);
       }
@@ -298,7 +301,7 @@ class ShippingParcelModel {
         success: true,
         message: 'Shipping parcels retrieved successfully.',
         data: result || [],
-        totalRecords: totalRecords || 0,
+        totallearningRecords: totalRecords || 0,
         parcelId: null,
         newParcelId: null,
       };
