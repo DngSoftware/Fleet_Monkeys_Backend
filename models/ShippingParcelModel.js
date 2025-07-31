@@ -146,7 +146,7 @@ class ShippingParcelModel {
       }
       if (parcelData.ParcelDimensionID) {
         const [dimensionCheck] = await pool.query(
-          'SELECT 1 FROM dbo_tblparceldimension WHERE ParcelDimensionID = ?',
+          'SELECT 1 FROM dbo_tblpinvoiceparcelpalletdimensions WHERE ParcelDimensionID = ?',
           [parseInt(parcelData.ParcelDimensionID)]
         );
         if (dimensionCheck.length === 0) errors.push(`ParcelDimensionID ${parcelData.ParcelDimensionID} does not exist`);
