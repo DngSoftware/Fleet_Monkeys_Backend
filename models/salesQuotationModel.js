@@ -127,7 +127,7 @@ class SalesQuotationModel {
         `SELECT 
            @p_Result AS result,
            @p_Message AS message,
-           @p_NewSalesQuotationID AS salesquotationid`
+           @p_NewSalesQuotationID AS newsalesquotationid`
       );
 
       if (outParams.result !== 1) {
@@ -135,7 +135,7 @@ class SalesQuotationModel {
       }
 
       return {
-        salesquotationid: outParams.salesquotationid,
+        newsalesquotationid: outParams.newsalesquotationid,
         message: outParams.message
       };
     } catch (err) {

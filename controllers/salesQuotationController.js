@@ -124,6 +124,7 @@ class SalesQuotationController {
         data: null,
         salesquotationid: null,
         newsalesquotationid: null
+
       });
     }
   }
