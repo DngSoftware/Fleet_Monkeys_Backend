@@ -44,6 +44,14 @@ class ShippingParcelController {
       }
 
       const result = await ShippingParcelModel.createShippingParcel(parcelData);
+      // Debug log to inspect the result
+      console.log('Create ShippingParcel result:', result);
+      // Workaround: If newParcelId is present, treat as success
+      if (result.newParcelId && !result.success) {
+        console.warn('Inconsistent result: success=false but newParcelId present. Overriding to success.');
+        result.success = true;
+        result.message = result.message || 'Parcel inserted successfully';
+      }
       return res.status(result.success ? 201 : 400).json(result);
     } catch (error) {
       console.error('Create ShippingParcel error:', error);
