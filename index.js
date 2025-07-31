@@ -74,6 +74,7 @@ const ShippingParcelRoutes = require('./routes/ShippingParcelRoutes');
 const repackagedPalletOrTobaccoRoutes = require('./routes/repackagedPalletOrTobaccoRoutes');
 const pInvoiceAdjustmentRoutes = require('./routes/pInvoiceAdjustmentRoutes');
 const transactionsRoutes = require('./routes/transactionsRoutes');
+const pInvoiceParcelPalletDimensionsRoutes = require('./routes/pInvoiceParcelPalletDimensionsRoutes');
 
 
 const app = express();
@@ -229,7 +230,8 @@ async function startServer() {
       ['/api/ShippingParcel', ShippingParcelRoutes],
       ['/api/repackagedPalletOrTobacco', repackagedPalletOrTobaccoRoutes],
       ['/api/pInvoiceAdjustment', pInvoiceAdjustmentRoutes],
-      ['/api/transactions', transactionsRoutes]
+      ['/api/transactions', transactionsRoutes],
+      ['/api/pInvoiceParcelPalletDimensions', pInvoiceParcelPalletDimensionsRoutes]
     ];
 
     routes.forEach(([path, route]) => {
