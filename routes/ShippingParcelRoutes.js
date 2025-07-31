@@ -3,12 +3,14 @@ const router = express.Router();
 const ShippingParcelController = require('../controllers/ShippingParcelController');
 const authMiddleware = require('../middleware/authMiddleware');
 
-
 // Get all ShippingParcels (requires read permission on ShippingParcel table)
 router.get('/', authMiddleware, ShippingParcelController.getAllShippingParcels);
 
 // Get a single ShippingParcel by ID (requires read permission on ShippingParcel table)
-router.get('/:id', authMiddleware,ShippingParcelController.getShippingParcel);
+router.get('/:id', authMiddleware, ShippingParcelController.getShippingParcel);
+
+// Get all ShippingParcels by SalesQuotationID (requires read permission on ShippingParcel table)
+router.get('/salesquotation/:salesQuotationId', authMiddleware, ShippingParcelController.getShippingParcelsBySalesQuotation);
 
 // Create a new ShippingParcel (requires write permission on ShippingParcel table)
 router.post('/', authMiddleware, ShippingParcelController.createShippingParcel);
@@ -17,7 +19,7 @@ router.post('/', authMiddleware, ShippingParcelController.createShippingParcel);
 router.put('/:id', authMiddleware, ShippingParcelController.updateShippingParcel);
 
 // Delete a ShippingParcel (soft delete, requires delete permission on ShippingParcel table)
-router.delete('/:id', authMiddleware,  ShippingParcelController.deleteShippingParcel);
+router.delete('/:id', authMiddleware, ShippingParcelController.deleteShippingParcel);
 
 // Generate QR code URL for a ShippingParcel (requires read permission on ShippingParcel table)
 router.get('/:id/qrcode', authMiddleware, ShippingParcelController.generateQRCode);
