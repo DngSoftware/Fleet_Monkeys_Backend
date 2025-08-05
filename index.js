@@ -75,7 +75,9 @@ const repackagedPalletOrTobaccoRoutes = require('./routes/repackagedPalletOrToba
 const pInvoiceAdjustmentRoutes = require('./routes/pInvoiceAdjustmentRoutes');
 const transactionsRoutes = require('./routes/transactionsRoutes');
 const pInvoiceParcelPalletDimensionsRoutes = require('./routes/pInvoiceParcelPalletDimensionsRoutes');
-
+const loadRoutes = require('./routes/loadRoutes');
+const trailerRoutes = require('./routes/trailerRoutes');
+const loadTrailerRoutes = require('./routes/loadTrailerRoutes');
 
 const app = express();
 
@@ -231,7 +233,10 @@ async function startServer() {
       ['/api/repackagedPalletOrTobacco', repackagedPalletOrTobaccoRoutes],
       ['/api/pInvoiceAdjustment', pInvoiceAdjustmentRoutes],
       ['/api/transactions', transactionsRoutes],
-      ['/api/pInvoiceParcelPalletDimensions', pInvoiceParcelPalletDimensionsRoutes]
+      ['/api/pInvoiceParcelPalletDimensions', pInvoiceParcelPalletDimensionsRoutes],
+      ['/api/load',loadRoutes],
+      ['/api/trailer',trailerRoutes],
+      ['/api/loadTrailer',loadTrailerRoutes]
     ];
 
     routes.forEach(([path, route]) => {
@@ -252,7 +257,7 @@ async function startServer() {
     });
 
     // dummy
-    const PORT = process.env.PORT || 7000;
+    const PORT = process.env.PORT || 7001;
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
     });
