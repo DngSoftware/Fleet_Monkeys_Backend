@@ -74,7 +74,7 @@ class PInvoiceParcelPalletDimensionsModel {
       connection = await pool.getConnection();
       const errors = [];
 
-      if (action === 'INSERT' || action === 'UPDATE') {
+      if (action === 'INSERT' || action === 'UPDATE' || action === 'SELECT_BY_PARCELID') {
         if (dimensionData.ParcelID) {
           const [parcelCheck] = await connection.query(
             'SELECT 1 FROM dbo_tblshippingparcel WHERE ParcelID = ?',
@@ -213,6 +213,63 @@ class PInvoiceParcelPalletDimensionsModel {
     }
 
     return await this.#executeManageStoredProcedure('SELECT', dimensionData);
+  }
+
+  static async getPInvoiceParcelPalletDimensionsByParcelId(paginationData) {
+    let connection;
+    try {
+      const pool = await poolPromise;
+      connection = await pool.getConnection();
+
+      const parcelId = parseInt(paginationData.ParcelID);
+      const pageNumber = parseInt(paginationData.PageNumber) || 1;
+      const pageSize = parseInt(paginationData.PageSize) || 10;
+
+      if (isNaN(parcelId)) {
+        throw new Error('Invalid or missing ParcelID');
+      }
+      if (pageNumber < 1) {
+        throw new Error('PageNumber must be greater than 0');
+      }
+      if (pageSize < 1 || pageSize > 100) {
+        throw new Error('PageSize must be between 1 and 100');
+      }
+
+      const fkErrors = await this.#validateForeignKeys({ ParcelID: parcelId }, 'SELECT_BY_PARCELID');
+      if (fkErrors) {
+        return {
+          success: false,
+          message: `Validation failed: ${fkErrors}`,
+          data: null,
+          parcelDimensionId: null,
+          newParcelDimensionId: null,
+        };
+      }
+
+      const [result] = await connection.query(
+        'SELECT * FROM dbo_tblpinvoiceparcelpalletdimensions WHERE ParcelID = ? LIMIT ? OFFSET ?',
+        [parcelId, pageSize, (pageNumber - 1) * pageSize]
+      );
+
+      const [[{ totalRecords }]] = await connection.query(
+        'SELECT COUNT(*) AS totalRecords FROM dbo_tblpinvoiceparcelpalletdimensions WHERE ParcelID = ?',
+        [parcelId]
+      );
+
+      return {
+        success: true,
+        message: 'Records retrieved successfully.',
+        data: result,
+        totalRecords: totalRecords || 0,
+        parcelDimensionId: null,
+        newParcelDimensionId: null,
+      };
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] Database error in getPInvoiceParcelPalletDimensionsByParcelId:`, error);
+      throw new Error(`Database error: ${error.message || 'Unknown error'}`);
+    } finally {
+      if (connection) connection.release();
+    }
   }
 
   static async getAllPInvoiceParcelPalletDimensions(paginationData) {

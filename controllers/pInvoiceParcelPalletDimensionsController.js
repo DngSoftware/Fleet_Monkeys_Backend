@@ -146,6 +146,70 @@ class PInvoiceParcelPalletDimensionsController {
     }
   }
 
+  static async getPInvoiceParcelPalletDimensionsByParcelId(req, res) {
+    try {
+      const parcelId = parseInt(req.params.parcelId);
+      if (isNaN(parcelId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing ParcelID',
+          data: null,
+          parcelDimensionId: null,
+          newParcelDimensionId: null,
+        });
+      }
+
+      const paginationData = {
+        ParcelID: parcelId,
+        PageNumber: req.query.pageNumber ? parseInt(req.query.pageNumber) : 1,
+        PageSize: req.query.pageSize ? parseInt(req.query.pageSize) : 10,
+      };
+
+      if (paginationData.PageNumber < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageNumber must be greater than 0',
+          data: null,
+          parcelDimensionId: null,
+          newParcelDimensionId: null,
+        });
+      }
+      if (paginationData.PageSize < 1 || paginationData.PageSize > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageSize must be between 1 and 100',
+          data: null,
+          parcelDimensionId: null,
+          newParcelDimensionId: null,
+        });
+      }
+
+      const result = await PInvoiceParcelPalletDimensionsModel.getPInvoiceParcelPalletDimensionsByParcelId(paginationData);
+      return res.status(result.success ? 200 : 404).json({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+        pagination: {
+          pageNumber: paginationData.PageNumber,
+          pageSize: paginationData.PageSize,
+          totalRecords: result.totalRecords || 0,
+          totalPages: Math.ceil(result.totalRecords / paginationData.PageSize),
+        },
+        parcelDimensionId: null,
+        newParcelDimensionId: null,
+      });
+    } catch (error) {
+      console.error('Get PInvoiceParcelPalletDimensionsByParcelId error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        parcelDimensionId: null,
+        newParcelDimensionId: null,
+      });
+    }
+  }
+
   static async getAllPInvoiceParcelPalletDimensions(req, res) {
     try {
       const paginationData = {

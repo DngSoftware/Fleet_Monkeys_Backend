@@ -9,6 +9,9 @@ router.get('/', authMiddleware, PInvoiceParcelPalletDimensionsController.getAllP
 // Get a single PInvoiceParcelPalletDimensions by ID (requires read permission)
 router.get('/:id', authMiddleware, PInvoiceParcelPalletDimensionsController.getPInvoiceParcelPalletDimensions);
 
+// Get all PInvoiceParcelPalletDimensions by ParcelID (requires read permission)
+router.get('/by-parcel/:parcelId', authMiddleware, PInvoiceParcelPalletDimensionsController.getPInvoiceParcelPalletDimensionsByParcelId);
+
 // Create a new PInvoiceParcelPalletDimensions (requires write permission)
 router.post('/', authMiddleware, PInvoiceParcelPalletDimensionsController.createPInvoiceParcelPalletDimensions);
 
