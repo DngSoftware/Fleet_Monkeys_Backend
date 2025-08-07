@@ -11,6 +11,7 @@ class PInvoiceParcelPalletDimensionsModel {
       const queryParams = [
         action,
         dimensionData.ParcelDimensionID ? parseInt(dimensionData.ParcelDimensionID) : null,
+        dimensionData.ParcelID ? parseInt(dimensionData.ParcelID) : null,
         dimensionData.ActualLength ? parseFloat(dimensionData.ActualLength) : null,
         dimensionData.ActualHeight ? parseFloat(dimensionData.ActualHeight) : null,
         dimensionData.ActualWidth ? parseFloat(dimensionData.ActualWidth) : null,
@@ -30,7 +31,7 @@ class PInvoiceParcelPalletDimensionsModel {
       console.log(`[${new Date().toISOString()}] Executing SP_ManagePInvoiceParcelPalletDimensions with params:`, JSON.stringify(queryParams, null, 2));
 
       const [result] = await connection.query(
-        'CALL SP_ManagePInvoiceParcelPalletDimensions(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewParcelDimensionID)',
+        'CALL SP_ManagePInvoiceParcelPalletDimensions(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewParcelDimensionID)',
         queryParams
       );
 
@@ -40,7 +41,6 @@ class PInvoiceParcelPalletDimensionsModel {
 
       console.log(`[${new Date().toISOString()}] Stored procedure output:`, JSON.stringify(outParams, null, 2));
 
-      // Verify inserted data immediately
       if (action === 'INSERT' && outParams.newParcelDimensionID) {
         const [insertedData] = await connection.query(
           'SELECT * FROM dbo_tblpinvoiceparcelpalletdimensions WHERE ParcelDimensionID = ?',
@@ -56,7 +56,7 @@ class PInvoiceParcelPalletDimensionsModel {
         message: outParams.message || (outParams.result === 1 ? `${action} operation successful` : 'Operation failed'),
         data: action === 'SELECT' ? result[0]?.[0] || null : null,
         parcelDimensionId: dimensionData.ParcelDimensionID,
-        newParcelDimensionId: outParams.newParcelDimensionID,
+        newParcelDimensionId: outParams.newParcelDimensionID ? parseInt(outParams.newParcelDimensionID) : null,
       };
     } catch (error) {
       if (connection) await connection.rollback();
@@ -75,16 +75,23 @@ class PInvoiceParcelPalletDimensionsModel {
       const errors = [];
 
       if (action === 'INSERT' || action === 'UPDATE') {
+        if (dimensionData.ParcelID) {
+          const [parcelCheck] = await connection.query(
+            'SELECT 1 FROM dbo_tblshippingparcel WHERE ParcelID = ?',
+            [parseInt(dimensionData.ParcelID)]
+          );
+          if (parcelCheck.length === 0) errors.push(`ParcelID ${dimensionData.ParcelID} does not exist`);
+        }
         if (dimensionData.VolumeUOMID) {
           const [uomCheck] = await connection.query(
-            'SELECT 1 FROM dbo_tbluom WHERE UOMID = ? AND IsDeleted = 0',
+            'SELECT 1 FROM dbo_tbluom WHERE UOMID = ?',
             [parseInt(dimensionData.VolumeUOMID)]
           );
           if (uomCheck.length === 0) errors.push(`VolumeUOMID ${dimensionData.VolumeUOMID} does not exist`);
         }
         if (dimensionData.WeightUOMID) {
           const [uomCheck] = await connection.query(
-            'SELECT 1 FROM dbo_tbluom WHERE UOMID = ? AND IsDeleted = 0',
+            'SELECT 1 FROM dbo_tbluom WHERE UOMID = ?',
             [parseInt(dimensionData.WeightUOMID)]
           );
           if (uomCheck.length === 0) errors.push(`WeightUOMID ${dimensionData.WeightUOMID} does not exist`);
