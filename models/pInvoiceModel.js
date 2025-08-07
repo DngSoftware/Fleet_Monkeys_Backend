@@ -99,8 +99,6 @@ class PInvoiceModel {
         null, // p_TaxChargesTypeID
         null, // p_TaxRate
         null, // p_TaxTotal
-        null, // p_OriginWarehouseAddressID
-        null, // p_DestinationWarehouseAddressID
         null, // p_OriginWarehouseID
         null, // p_DestinationWarehouseID
         null, // p_DeferralAccount
@@ -110,7 +108,7 @@ class PInvoiceModel {
       ];
 
       const [results] = await pool.query(
-        'CALL SP_ManagePInvoice(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_ErrorMessage)',
+        'CALL SP_ManagePInvoice(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_ErrorMessage)',
         queryParams
       );
 
