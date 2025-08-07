@@ -320,13 +320,20 @@ class ShippingParcelModel {
       }
 
       const [result] = await pool.query(
-        'SELECT * FROM dbo_tblshippingparcel WHERE SalesQuotationID = ? LIMIT ? OFFSET ?',
-        [salesQuotationId, pageSize, (pageNumber - 1) * pageSize]
+        'SELECT DISTINCT sp.* FROM dbo_tblshippingparcel sp ' +
+        'LEFT JOIN dbo_tblpinvoice pi ON sp.PInvoiceID = pi.PInvoiceID ' +
+        'LEFT JOIN dbo_tblsalesorder so ON pi.SalesOrderID = so.SalesOrderID ' +
+        'WHERE sp.SalesQuotationID = ? OR so.SalesQuotationID = ? ' +
+        'LIMIT ? OFFSET ?',
+        [salesQuotationId, salesQuotationId, pageSize, (pageNumber - 1) * pageSize]
       );
 
       const [[{ totalRecords }]] = await pool.query(
-        'SELECT COUNT(*) AS totalRecords FROM dbo_tblshippingparcel WHERE SalesQuotationID = ?',
-        [salesQuotationId]
+        'SELECT COUNT(DISTINCT sp.ParcelID) AS totalRecords FROM dbo_tblshippingparcel sp ' +
+        'LEFT JOIN dbo_tblpinvoice pi ON sp.PInvoiceID = pi.PInvoiceID ' +
+        'LEFT JOIN dbo_tblsalesorder so ON pi.SalesOrderID = so.SalesOrderID ' +
+        'WHERE sp.SalesQuotationID = ? OR so.SalesQuotationID = ?',
+        [salesQuotationId, salesQuotationId]
       );
 
       return {
@@ -339,6 +346,71 @@ class ShippingParcelModel {
       };
     } catch (error) {
       console.error('Database error in getShippingParcelsBySalesQuotation:', error);
+      throw new Error(`Database error: ${error.message || 'Unknown error'}`);
+    }
+  }
+
+  static async getShippingParcelsByPInvoice(paginationData) {
+    try {
+      const pool = await poolPromise;
+
+      const pInvoiceId = parseInt(paginationData.PInvoiceID);
+      const salesQuotationId = parseInt(paginationData.SalesQuotationID);
+      const pageNumber = parseInt(paginationData.PageNumber) || 1;
+      const pageSize = parseInt(paginationData.PageSize) || 10;
+
+      if (isNaN(pInvoiceId)) {
+        throw new Error('Invalid PInvoiceID');
+      }
+      if (isNaN(salesQuotationId)) {
+        throw new Error('Invalid SalesQuotationID');
+      }
+      if (pageNumber < 1) {
+        throw new Error('PageNumber must be greater than 0');
+      }
+      if (pageSize < 1 || pageSize > 100) {
+        throw new Error('PageSize must be between 1 and 100');
+      }
+
+      const [invoiceCheck] = await pool.query(
+        'SELECT 1 FROM dbo_tblpinvoice pi ' +
+        'JOIN dbo_tblsalesorder so ON pi.SalesOrderID = so.SalesOrderID ' +
+        'WHERE pi.PInvoiceID = ? AND so.SalesQuotationID = ?',
+        [pInvoiceId, salesQuotationId]
+      );
+      if (invoiceCheck.length === 0) {
+        return {
+          success: false,
+          message: `PInvoiceID ${pInvoiceId} does not exist or is not linked to SalesQuotationID ${salesQuotationId}`,
+          data: null,
+          totalRecords: 0,
+          parcelId: null,
+          newParcelId: null,
+        };
+      }
+
+      const [result] = await pool.query(
+        'SELECT sp.* FROM dbo_tblshippingparcel sp ' +
+        'WHERE sp.PInvoiceID = ? AND sp.SalesQuotationID = ? LIMIT ? OFFSET ?',
+        [pInvoiceId, salesQuotationId, pageSize, (pageNumber - 1) * pageSize]
+      );
+
+      const [[{ totalRecords }]] = await pool.query(
+        'SELECT COUNT(*) AS totalRecords FROM dbo_tblshippingparcel sp ' +
+        'WHERE sp.PInvoiceID = ? AND sp.SalesQuotationID = ?',
+        [pInvoiceId, salesQuotationId]
+      );
+
+      return {
+        success: true,
+        message: 'Shipping parcels retrieved successfully.',
+        data: result || [],
+        totalRecords: totalRecords || 0,
+        parcelId: null,
+        newParcelId: null,
+      };
+    } catch (error) {
+      console.error('Database error in getShippingParcelsByPInvoice:', error);
       throw new Error(`Database error: ${error.message || 'Unknown error'}`);
     }
   }
