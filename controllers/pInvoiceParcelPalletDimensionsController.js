@@ -6,6 +6,7 @@ class PInvoiceParcelPalletDimensionsController {
     try {
       console.log('Received POST request body:', JSON.stringify(req.body, null, 2));
       const dimensionData = {
+        ParcelID: req.body.ParcelID ? parseInt(req.body.ParcelID) : null,
         ActualLength: req.body.ActualLength ? parseFloat(req.body.ActualLength) : null,
         ActualHeight: req.body.ActualHeight ? parseFloat(req.body.ActualHeight) : null,
         ActualWidth: req.body.ActualWidth ? parseFloat(req.body.ActualWidth) : null,
@@ -52,6 +53,7 @@ class PInvoiceParcelPalletDimensionsController {
 
       const dimensionData = {
         ParcelDimensionID: parcelDimensionId,
+        ParcelID: req.body.ParcelID ? parseInt(req.body.ParcelID) : null,
         ActualLength: req.body.ActualLength ? parseFloat(req.body.ActualLength) : null,
         ActualHeight: req.body.ActualHeight ? parseFloat(req.body.ActualHeight) : null,
         ActualWidth: req.body.ActualWidth ? parseFloat(req.body.ActualWidth) : null,
