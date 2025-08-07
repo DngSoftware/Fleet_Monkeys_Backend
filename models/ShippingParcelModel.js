@@ -319,21 +319,34 @@ class ShippingParcelModel {
         };
       }
 
+      // Check if a PInvoice exists linked to a SalesOrder with the given SalesQuotationID
+      const [invoiceCheck] = await pool.query(
+        'SELECT 1 FROM dbo_tblpinvoice pi ' +
+        'JOIN dbo_tblsalesorder so ON pi.SalesOrderID = so.SalesOrderID ' +
+        'WHERE so.SalesQuotationID = ? LIMIT 1',
+        [salesQuotationId]
+      );
+      if (invoiceCheck.length === 0) {
+        return {
+          success: false,
+          message: `No PInvoice exists for SalesQuotationID ${salesQuotationId}`,
+          data: null,
+          totalRecords: 0,
+          parcelId: null,
+          newParcelId: null,
+        };
+      }
+
       const [result] = await pool.query(
-        'SELECT DISTINCT sp.* FROM dbo_tblshippingparcel sp ' +
-        'LEFT JOIN dbo_tblpinvoice pi ON sp.PInvoiceID = pi.PInvoiceID ' +
-        'LEFT JOIN dbo_tblsalesorder so ON pi.SalesOrderID = so.SalesOrderID ' +
-        'WHERE sp.SalesQuotationID = ? OR so.SalesQuotationID = ? ' +
-        'LIMIT ? OFFSET ?',
-        [salesQuotationId, salesQuotationId, pageSize, (pageNumber - 1) * pageSize]
+        'SELECT * FROM dbo_tblshippingparcel sp ' +
+        'WHERE sp.SalesQuotationID = ? AND sp.PInvoiceID IS NULL LIMIT ? OFFSET ?',
+        [salesQuotationId, pageSize, (pageNumber - 1) * pageSize]
       );
 
       const [[{ totalRecords }]] = await pool.query(
-        'SELECT COUNT(DISTINCT sp.ParcelID) AS totalRecords FROM dbo_tblshippingparcel sp ' +
-        'LEFT JOIN dbo_tblpinvoice pi ON sp.PInvoiceID = pi.PInvoiceID ' +
-        'LEFT JOIN dbo_tblsalesorder so ON pi.SalesOrderID = so.SalesOrderID ' +
-        'WHERE sp.SalesQuotationID = ? OR so.SalesQuotationID = ?',
-        [salesQuotationId, salesQuotationId]
+        'SELECT COUNT(*) AS totalRecords FROM dbo_tblshippingparcel sp ' +
+        'WHERE sp.SalesQuotationID = ? AND sp.PInvoiceID IS NULL',
+        [salesQuotationId]
       );
 
       return {
