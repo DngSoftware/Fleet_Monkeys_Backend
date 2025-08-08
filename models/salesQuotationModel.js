@@ -1,7 +1,7 @@
 const poolPromise = require('../config/db.config');
 
 class SalesQuotationModel {
-  // Get all Sales Quotations
+   // Get all Sales Quotations (unchanged for brevity)
   static async getAllSalesQuotations({
     pageNumber = 1,
     pageSize = 10,
@@ -51,6 +51,8 @@ class SalesQuotationModel {
         supplierId ? parseInt(supplierId) : null
       ];
 
+      console.log(`Executing sp_getallsalesquotation with params:`, queryParams);
+
       const [result] = await pool.query(
         `CALL sp_getallsalesquotation(?, ?, ?, ?, ?, ?, ?, ?, ?, @p_totalrecords)`,
         queryParams
@@ -61,7 +63,7 @@ class SalesQuotationModel {
       );
 
       if (outParams.totalrecords === -1) {
-        throw new Error('Error retrieving Sales Quotations');
+        throw new Error('Error retrieving Sales Quotations: Check dbo_tblerrorlog for details');
       }
 
       return {
@@ -72,7 +74,7 @@ class SalesQuotationModel {
         totalPages: Math.ceil((outParams.totalrecords || 0) / pageSize)
       };
     } catch (err) {
-      console.error('getAllSalesQuotations error:', err);
+      console.error('getAllSalesQuotations error:', err.message, err.stack);
       throw new Error(`Database error: ${err.message}`);
     }
   }
@@ -81,6 +83,14 @@ class SalesQuotationModel {
   static async createSalesQuotation(data) {
     try {
       const pool = await poolPromise;
+
+      // Validate required fields
+      if (!data.purchaserfqid || isNaN(data.purchaserfqid)) {
+        throw new Error('PurchaseRFQID is required and must be a number');
+      }
+      if (!data.createdbyid || isNaN(data.createdbyid)) {
+        throw new Error('CreatedByID is required and must be a number');
+      }
 
       const queryParams = [
         'INSERT',
@@ -118,6 +128,8 @@ class SalesQuotationModel {
         null
       ];
 
+      console.log(`Executing SP_ManageSalesQuotation with params:`, queryParams);
+
       const [result] = await pool.query(
         `CALL SP_ManageSalesQuotation(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewSalesQuotationID)`,
         queryParams
@@ -131,18 +143,20 @@ class SalesQuotationModel {
       );
 
       if (outParams.result !== 1) {
-        throw new Error(outParams.message || 'Failed to create Sales Quotation');
+        throw new Error(outParams.message || 'Failed to create Sales Quotation: Check dbo_tblerrorlog for details');
       }
+
+      console.log(`Created Sales Quotation with ID: ${outParams.newsalesquotationid}`);
 
       return {
         newsalesquotationid: outParams.newsalesquotationid,
         message: outParams.message
       };
     } catch (err) {
+      console.error('createSalesQuotation error:', err.message, err.stack);
       throw new Error(`Database error: ${err.message}`);
     }
   }
-
   // Get a single Sales Quotation by ID
   static async getSalesQuotationById(id) {
     try {
