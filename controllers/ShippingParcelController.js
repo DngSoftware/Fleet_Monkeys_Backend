@@ -31,6 +31,7 @@ class ShippingParcelController {
         CollectionLoadID: req.body.CollectionLoadID ? parseInt(req.body.CollectionLoadID) : null,
         CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
         ChangedBy: req.body.ChangedBy || req.user.username || 'NA',
+        OpenDimensionForm: req.body.OpenDimensionForm != null ? Boolean(req.body.OpenDimensionForm) : false,
       };
 
       if (!parcelData.CreatedByID) {
@@ -44,14 +45,7 @@ class ShippingParcelController {
       }
 
       const result = await ShippingParcelModel.createShippingParcel(parcelData);
-      // Debug log to inspect the result
       console.log('Create ShippingParcel result:', result);
-      // Workaround: If newParcelId is present, treat as success
-      if (result.newParcelId && !result.success) {
-        console.warn('Inconsistent result: success=false but newParcelId present. Overriding to success.');
-        result.success = true;
-        result.message = result.message || 'Parcel inserted successfully';
-      }
       return res.status(result.success ? 201 : 400).json(result);
     } catch (error) {
       console.error('Create ShippingParcel error:', error);
@@ -107,6 +101,7 @@ class ShippingParcelController {
         CollectionLoadID: req.body.CollectionLoadID ? parseInt(req.body.CollectionLoadID) : null,
         CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
         ChangedBy: req.body.ChangedBy || req.user.username || 'NA',
+        OpenDimensionForm: req.body.OpenDimensionForm != null ? Boolean(req.body.OpenDimensionForm) : false,
       };
 
       if (!parcelData.CreatedByID) {
@@ -265,6 +260,9 @@ class ShippingParcelController {
           data: null,
           parcelId: null,
           newParcelId: null,
+          salesQuotationId: null,
+          pInvoiceId: null,
+          salesRFQId: null,
         });
       }
 
@@ -281,6 +279,9 @@ class ShippingParcelController {
           data: null,
           parcelId: null,
           newParcelId: null,
+          salesQuotationId: salesQuotationId,
+          pInvoiceId: null,
+          salesRFQId: null,
         });
       }
       if (paginationData.PageSize < 1 || paginationData.PageSize > 100) {
@@ -290,6 +291,9 @@ class ShippingParcelController {
           data: null,
           parcelId: null,
           newParcelId: null,
+          salesQuotationId: salesQuotationId,
+          pInvoiceId: null,
+          salesRFQId: null,
         });
       }
 
@@ -311,6 +315,95 @@ class ShippingParcelController {
         data: null,
         parcelId: null,
         newParcelId: null,
+        salesQuotationId: req.params.salesQuotationId,
+        pInvoiceId: null,
+        salesRFQId: null,
+      });
+    }
+  }
+
+  static async getShippingParcelsByPInvoice(req, res) {
+    try {
+      const pInvoiceId = parseInt(req.params.pInvoiceId);
+      const salesQuotationId = parseInt(req.query.salesQuotationId);
+      if (isNaN(pInvoiceId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing PInvoiceID',
+          data: null,
+          parcelId: null,
+          newParcelId: null,
+          salesQuotationId: salesQuotationId,
+          pInvoiceId: null,
+          salesRFQId: null,
+        });
+      }
+      if (isNaN(salesQuotationId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing SalesQuotationID',
+          data: null,
+          parcelId: null,
+          newParcelId: null,
+          salesQuotationId: null,
+          pInvoiceId: pInvoiceId,
+          salesRFQId: null,
+        });
+      }
+
+      const paginationData = {
+        PInvoiceID: pInvoiceId,
+        SalesQuotationID: salesQuotationId,
+        PageNumber: req.query.pageNumber ? parseInt(req.query.pageNumber) : 1,
+        PageSize: req.query.pageSize ? parseInt(req.query.pageSize) : 10,
+      };
+
+      if (paginationData.PageNumber < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageNumber must be greater than 0',
+          data: null,
+          parcelId: null,
+          newParcelId: null,
+          salesQuotationId: salesQuotationId,
+          pInvoiceId: pInvoiceId,
+          salesRFQId: null,
+        });
+      }
+      if (paginationData.PageSize < 1 || paginationData.PageSize > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageSize must be between 1 and 100',
+          data: null,
+          parcelId: null,
+          newParcelId: null,
+          salesQuotationId: salesQuotationId,
+          pInvoiceId: pInvoiceId,
+          salesRFQId: null,
+        });
+      }
+
+      const result = await ShippingParcelModel.getShippingParcelsByPInvoice(paginationData);
+      return res.status(result.success ? 200 : 400).json({
+        ...result,
+        pagination: {
+          pageNumber: paginationData.PageNumber,
+          pageSize: paginationData.PageSize,
+          totalRecords: result.totalRecords || 0,
+          totalPages: Math.ceil(result.totalRecords / paginationData.PageSize),
+        },
+      });
+    } catch (error) {
+      console.error('Get ShippingParcelsByPInvoice error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        parcelId: null,
+        newParcelId: null,
+        salesQuotationId: req.query.salesQuotationId,
+        pInvoiceId: req.params.pInvoiceId,
+        salesRFQId: null,
       });
     }
   }
