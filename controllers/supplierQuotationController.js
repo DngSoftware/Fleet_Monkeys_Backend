@@ -1,7 +1,6 @@
 const SupplierQuotationModel = require('../models/supplierQuotationModel');
 
 class SupplierQuotationController {
-  // Get all Supplier Quotations
   static async getAllSupplierQuotations(req, res) {
     try {
       const { pageNumber, pageSize, fromDate, toDate } = req.query;
@@ -35,7 +34,7 @@ class SupplierQuotationController {
         data: result.data,
         pagination: {
           totalRecords: result.totalRecords,
-          currentPage: result.currentPage,
+          pageNumber: result.pageNumber, // Changed from currentPage
           pageSize: result.pageSize,
           totalPages: result.totalPages
         }
@@ -49,7 +48,6 @@ class SupplierQuotationController {
       });
     }
   }
-
   // Create a new Supplier Quotation
   static async createSupplierQuotation(req, res) {
     try {

@@ -79,7 +79,7 @@ async function getPurchaseRFQDetails(purchaseRFQID) {
     return { rfqDetails, parcels };
   } catch (error) {
     console.error(`Error in getPurchaseRFQDetails for PurchaseRFQID=${purchaseRFQID}:`, error.message, error.stack);
-    throw new Error(`Error fetching Purchase RFQ: ${error.message}`);
+    throw new Error(`Error fetching Purchase RFQ details: ${error.message}`);
   } finally {
     connection.release();
   }
@@ -89,27 +89,21 @@ async function getSupplierDetails(supplierIDs) {
   const pool = await poolPromise;
   const connection = await pool.getConnection();
   try {
-    // Fetch all supplier details in a single query
+    if (!supplierIDs || !Array.isArray(supplierIDs) || supplierIDs.length === 0) {
+      throw new Error('Invalid or empty supplierIDs array');
+    }
+
     const [results] = await connection.query(
-      `SELECT 
-         s.*, st.SupplierType, a.AddressTitle, a.City, c.CurrencyName, comp.CompanyName
-       FROM dbo_tblsupplier s
-       LEFT JOIN dbo_tblsuppliertype st ON s.SupplierTypeID = st.SupplierTypeID
-       LEFT JOIN dbo_tbladdresses a ON s.SupplierAddressID = a.AddressID
-       LEFT JOIN dbo_tblcurrency c ON s.BillingCurrencyID = c.CurrencyID
-       LEFT JOIN dbo_tblcompany comp ON s.CompanyID = comp.CompanyID
-       WHERE s.SupplierID IN (?) AND (s.IsDeleted = 0 OR s.IsDeleted IS NULL)`,
+      `SELECT SupplierID, SupplierName, SupplierEmail
+       FROM dbo_tblsupplier
+       WHERE SupplierID IN (?) AND (IsDeleted = 0 OR IsDeleted IS NULL)`,
       [supplierIDs]
     );
 
-    if (!results || results.length === 0) {
-      throw new Error(`No suppliers found for SupplierIDs=${supplierIDs.join(',')}`);
-    }
-
-    console.log(`Fetched supplier details for SupplierIDs=${supplierIDs.join(',')}:`, results);
+    console.log(`Fetched supplier details for SupplierIDs=${supplierIDs}:`, results);
     return results;
   } catch (error) {
-    console.error(`Error in getSupplierDetails for SupplierIDs=${supplierIDs.join(',')}:`, error.message, error.stack);
+    console.error(`Error in getSupplierDetails for SupplierIDs=${supplierIDs}:`, error.message, error.stack);
     throw new Error(`Error fetching supplier details: ${error.message}`);
   } finally {
     connection.release();
@@ -120,34 +114,41 @@ async function createSupplierQuotation(purchaseRFQID, supplierID, createdByID) {
   const pool = await poolPromise;
   const connection = await pool.getConnection();
   try {
-    await connection.beginTransaction();
+    // Validate inputs
+    if (!purchaseRFQID || isNaN(purchaseRFQID)) {
+      throw new Error('Invalid PurchaseRFQID provided');
+    }
+    if (!supplierID || isNaN(supplierID)) {
+      throw new Error('Invalid SupplierID provided');
+    }
+    if (!createdByID || isNaN(createdByID)) {
+      throw new Error('Invalid CreatedByID provided');
+    }
+
     const result = await retryOperation(async () => {
+      // Execute stored procedure
       await connection.query(
-        `CALL SP_ManageSupplierQuotation(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewSupplierQuotationID)`,
-        ['INSERT', null, supplierID, purchaseRFQID, null, null, createdByID, null, null, null, null, null, null, null, null]
+        `CALL SP_ManageSupplierQuotation('INSERT', NULL, ?, ?, NULL, 'Pending', ?, NULL, 0, NULL, 0, 0, 0, NULL, NULL, @p_Result, @p_Message, @p_NewSupplierQuotationID)`,
+        [supplierID, purchaseRFQID, createdByID]
       );
 
-      const [[{ p_Result, p_Message, p_NewSupplierQuotationID }]] = await connection.query(
-        `SELECT @p_Result AS p_Result, @p_Message AS p_Message, @p_NewSupplierQuotationID AS p_NewSupplierQuotationID`
+      // Retrieve output parameters
+      const [outParams] = await connection.query(
+        'SELECT @p_Result AS result, @p_Message AS message, @p_NewSupplierQuotationID AS newSupplierQuotationID'
       );
 
-      console.log(`SP_ManageSupplierQuotation output for PurchaseRFQID=${purchaseRFQID}, SupplierID=${supplierID}:`, {
-        p_Result,
-        p_Message,
-        p_NewSupplierQuotationID,
-      });
+      console.log(`SP_ManageSupplierQuotation output:`, outParams);
 
-      if (p_Result !== 1 || !p_NewSupplierQuotationID) {
-        throw new Error(p_Message || 'Failed to create supplier quotation');
+      if (!outParams[0] || outParams[0].result !== 1) {
+        throw new Error(outParams[0]?.message || 'Failed to create Supplier Quotation');
       }
 
-      return p_NewSupplierQuotationID;
+      return outParams[0].newSupplierQuotationID;
     });
 
-    await connection.commit();
+    console.log(`Created Supplier Quotation for PurchaseRFQID=${purchaseRFQID}, SupplierID=${supplierID}: ID=${result}`);
     return result;
   } catch (error) {
-    await connection.rollback();
     console.error(`Error in createSupplierQuotation for PurchaseRFQID=${purchaseRFQID}, SupplierID=${supplierID}:`, error.message, error.stack);
     throw new Error(`Error creating supplier quotation: ${error.message}`);
   } finally {
@@ -159,33 +160,46 @@ async function getSupplierQuotationDetails(supplierQuotationID, supplierID) {
   const pool = await poolPromise;
   const connection = await pool.getConnection();
   try {
-    // Fetch quotation details and parcels in a single query
+    // Validate inputs
+    if (!supplierQuotationID || isNaN(supplierQuotationID)) {
+      throw new Error('Invalid SupplierQuotationID provided');
+    }
+    if (!supplierID || isNaN(supplierID)) {
+      throw new Error('Invalid SupplierID provided');
+    }
+
+    // Fetch quotation details and parcels
     const [results] = await connection.query(
       `SELECT 
-         sq.*, c.CompanyName, s.SupplierName, cu.CustomerName, curr.CurrencyName,
-         CONCAT(orig.AddressLine1, ', ', orig.City, ', ', orig.Country) AS OriginWarehouseAddress,
-         CONCAT(dest.AddressLine1, ', ', dest.City, ', ', dest.Country) AS DestinationAddress,
-         CONCAT(bill.AddressLine1, ', ', bill.City, ', ', bill.Country) AS BillingAddress,
-         CONCAT(coll.AddressLine1, ', ', coll.City, ', ', coll.Country) AS CollectionAddress,
-         st.ServiceType, sp.PriorityName AS ShippingPriority,
-         CONCAT(u.FirstName, ' ', u.LastName) AS CreatedByName,
-         sqp.SupplierQuotationID, sqp.ItemID, i.ItemName, sqp.UOMID, u2.UOM AS UOMName,
+         sq.*, 
+         supp.SupplierName, 
+         c.CustomerName, 
+         comp.CompanyName, 
+         curr.CurrencyName,
+         origin.AddressTitle AS OriginWarehouseAddress,
+         dest.AddressTitle AS DestinationAddress,
+         bill.AddressTitle AS BillingAddress,
+         coll.AddressTitle AS CollectionAddress,
+         service.ServiceType,
+         priority.PriorityName AS ShippingPriority,
+         CONCAT(p.FirstName, ' ', p.LastName) AS CreatedByName,
+         sqp.ItemID, i.ItemName, sqp.UOMID, u.UOM AS UOMName, 
          sqp.Rate, sqp.Amount, sqp.CountryOfOriginID
        FROM dbo_tblsupplierquotation sq
-       LEFT JOIN dbo_tblcompany c ON sq.CompanyID = c.CompanyID
-       LEFT JOIN dbo_tblsupplier s ON sq.SupplierID = s.SupplierID
-       LEFT JOIN dbo_tblcustomer cu ON sq.CustomerID = cu.CustomerID
+       LEFT JOIN dbo_tblsupplier supp ON sq.SupplierID = supp.SupplierID
+       LEFT JOIN dbo_tblcustomer c ON sq.CustomerID = c.CustomerID
+       LEFT JOIN dbo_tblcompany comp ON sq.CompanyID = comp.CompanyID
        LEFT JOIN dbo_tblcurrency curr ON sq.CurrencyID = curr.CurrencyID
-       LEFT JOIN dbo_tbladdresses orig ON sq.OriginWarehouseAddressID = orig.AddressID
+       LEFT JOIN dbo_tbladdresses origin ON sq.OriginWarehouseID = origin.AddressID
        LEFT JOIN dbo_tbladdresses dest ON sq.DestinationAddressID = dest.AddressID
        LEFT JOIN dbo_tbladdresses bill ON sq.BillingAddressID = bill.AddressID
        LEFT JOIN dbo_tbladdresses coll ON sq.CollectionAddressID = coll.AddressID
-       LEFT JOIN dbo_tblservicetype st ON sq.ServiceTypeID = st.ServiceTypeID
-       LEFT JOIN dbo_tblmailingpriority sp ON sq.ShippingPriorityID = sp.MailingPriorityID
-       LEFT JOIN dbo_tblperson u ON sq.CreatedByID = u.PersonID
+       LEFT JOIN dbo_tblservicetype service ON sq.ServiceTypeID = service.ServiceTypeID
+       LEFT JOIN dbo_tblmailingpriority priority ON sq.ShippingPriorityID = priority.MailingPriorityID
+       LEFT JOIN dbo_tblperson p ON sq.CreatedByID = p.PersonID
        LEFT JOIN dbo_tblsupplierquotationparcel sqp ON sq.SupplierQuotationID = sqp.SupplierQuotationID
        LEFT JOIN dbo_tblitem i ON sqp.ItemID = i.ItemID
-       LEFT JOIN dbo_tbluom u2 ON sqp.UOMID = u2.UOMID
+       LEFT JOIN dbo_tbluom u ON sqp.UOMID = u.UOMID
        WHERE sq.SupplierQuotationID = ? AND sq.SupplierID = ? 
        AND (sq.IsDeleted = 0 OR sq.IsDeleted IS NULL)
        AND (sqp.IsDeleted = 0 OR sqp.IsDeleted IS NULL OR sqp.SupplierQuotationID IS NULL)`,
@@ -193,7 +207,7 @@ async function getSupplierQuotationDetails(supplierQuotationID, supplierID) {
     );
 
     if (!results || results.length === 0) {
-      throw new Error(`No supplier quotation found for SupplierQuotationID=${supplierQuotationID}`);
+      throw new Error(`No active Supplier Quotation found for SupplierQuotationID=${supplierQuotationID}`);
     }
 
     // Group results into quotationDetails and quotationParcels
@@ -230,6 +244,9 @@ async function getSupplierQuotationDetails(supplierQuotationID, supplierID) {
     return { quotationDetails, quotationParcels };
   } catch (error) {
     console.error(`Error in getSupplierQuotationDetails for SupplierQuotationID=${supplierQuotationID}:`, error.message, error.stack);
+    if (error.message.includes("Table 'fleet_monkey.dbo_tblsupplierquotationparcels' doesn't exist")) {
+      throw new Error(`Database table 'dbo_tblsupplierquotationparcel' not found. Please verify the table exists in the database.`);
+    }
     throw new Error(`Error fetching supplier quotation details: ${error.message}`);
   } finally {
     connection.release();
@@ -245,7 +262,7 @@ async function logPurchaseRFQToSupplier(purchaseRFQID, supplierID, createdByID) 
       throw new Error('Invalid PurchaseRFQID provided');
     }
     if (!supplierID || isNaN(supplierID)) {
-      throw new Error('Invalid SupplierID-provided');
+      throw new Error('Invalid SupplierID provided');
     }
     if (!createdByID || isNaN(createdByID)) {
       throw new Error('Invalid CreatedByID provided');
@@ -253,7 +270,7 @@ async function logPurchaseRFQToSupplier(purchaseRFQID, supplierID, createdByID) 
 
     const result = await retryOperation(async () => {
       const [result] = await connection.query(
-        `INSERT INTO dbo_tblpurchaserfqtosupplier (PurchaseRFQID, SendToSupplierID, DateTimeSend, QuotationReceivedYN, CreatedByID, IsDeleted)
+      `INSERT INTO dbo_tblpurchaserfqtosupplier (PurchaseRFQID, SendToSupplierID, DateTimeSend, QuotationReceivedYN, CreatedByID, IsDeleted)
          VALUES (?, ?, NOW(), 0, ?, 0)`,
         [purchaseRFQID, supplierID, createdByID]
       );
