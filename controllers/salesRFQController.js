@@ -1,7 +1,6 @@
 const SalesRFQModel = require('../models/salesRFQModel');
 const { generateSalesRFQPDF } = require('../services/salesRFQPDFGenerator');
 const { sendDocumentEmail } = require('../utils/emailSender');
-const fs = require('fs');
 const poolPromise = require('../config/db.config');
 
 class SalesRFQController {
@@ -15,15 +14,15 @@ class SalesRFQController {
         ExternalRefNo: req.body.ExternalRefNo,
         ExternalSupplierID: req.body.ExternalSupplierID ? parseInt(req.body.ExternalSupplierID) : null,
         DeliveryDate: req.body.DeliveryDate,
-        PostingDate: req.body.PostingDate,
+        PostingDate: req.body.PostingDate || new Date().toISOString(), 
         RequiredByDate: req.body.RequiredByDate,
         DateReceived: req.body.DateReceived,
         ServiceTypeID: req.body.ServiceTypeID ? parseInt(req.body.ServiceTypeID) : null,
-        OriginWarehouseAddressID: req.body.OriginWarehouseAddressID ? parseInt(req.body.OriginWarehouseAddressID) : null,
+        OriginWarehouseID: req.body.OriginWarehouseID ? parseInt(req.body.OriginWarehouseID) : null,
         CollectionAddressID: req.body.CollectionAddressID ? parseInt(req.body.CollectionAddressID) : null,
         Status: req.body.Status,
         DestinationAddressID: req.body.DestinationAddressID ? parseInt(req.body.DestinationAddressID) : null,
-        DestinationWarehouseAddressID: req.body.DestinationWarehouseAddressID ? parseInt(req.body.DestinationWarehouseAddressID) : null,
+        DestinationWarehouseID: req.body.DestinationWarehouseID ? parseInt(req.body.DestinationWarehouseID) : null,
         BillingAddressID: req.body.BillingAddressID ? parseInt(req.body.BillingAddressID) : null,
         ShippingPriorityID: req.body.ShippingPriorityID ? parseInt(req.body.ShippingPriorityID) : null,
         Terms: req.body.Terms,
@@ -32,8 +31,8 @@ class SalesRFQController {
         PackagingRequiredYN: req.body.PackagingRequiredYN != null ? Boolean(req.body.PackagingRequiredYN) : null,
         FormCompletedYN: req.body.FormCompletedYN != null ? Boolean(req.body.FormCompletedYN) : null,
         CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
-        CompanyName: req.body.CompanyName, // Add if available in request
-        City: req.body.City, // Add if available in request
+        CompanyName: req.body.CompanyName,
+        City: req.body.City,
       };
 
       const result = await SalesRFQModel.createSalesRFQ(salesRFQData);
@@ -71,36 +70,40 @@ class SalesRFQController {
       }
 
       const pool = await poolPromise;
-      console.log('Resolved Pool object:', pool);
 
-      // Fetch customer email
       const [customer] = await pool.query(
-        'SELECT CustomerEmail FROM dbo_tblcustomer WHERE CustomerID = (SELECT CustomerID FROM dbo_tblsalesrfq WHERE SalesRFQID = ?)',
+        `SELECT c.CustomerName, c.CustomerEmail, 
+                a.AddressLine1, a.AddressLine2, a.City, a.County, a.State, a.PostalCode, a.Country
+         FROM dbo_tblcustomer c
+         LEFT JOIN dbo_tbladdresses a ON c.CustomerAddressID = a.AddressID
+         WHERE c.CustomerID = (SELECT CustomerID FROM dbo_tblsalesrfq WHERE SalesRFQID = ?)`,
         [salesRFQId]
       );
 
       if (customer.length === 0) {
         return res.status(400).json({
           success: false,
-          message: 'Customer email not found',
+          message: 'Customer not found',
           data: null,
           salesRFQId: null,
           newSalesRFQId: null,
         });
       }
 
-      // Fetch parcels
       const [parcels] = await pool.query(
-        'SELECT ItemID, ItemQuantity, UOMID FROM dbo_tblsalesrfqparcel WHERE SalesRFQID = ? AND IsDeleted = 0',
+        `SELECT p.ItemID, i.ItemName, p.ItemQuantity, p.UOMID, u.UOM
+         FROM dbo_tblsalesrfqparcel p
+         LEFT JOIN dbo_tblitem i ON p.ItemID = i.ItemID
+         LEFT JOIN dbo_tbluom u ON p.UOMID = u.UOMID
+         WHERE p.SalesRFQID = ?`,
         [salesRFQId]
       );
 
-      // Fetch SalesRFQ data with CompanyName from dbo_tblcompany
       const [salesRFQData] = await pool.query(
-        'SELECT s.Series, s.CustomerID, s.DeliveryDate, s.Terms, c.CompanyName ' +
-        'FROM dbo_tblsalesrfq s ' +
-        'LEFT JOIN dbo_tblcompany c ON s.CompanyID = c.CompanyID ' +
-        'WHERE s.SalesRFQID = ?',
+        `SELECT s.Series, s.CustomerID, s.DeliveryDate, s.Terms, c.CompanyName
+         FROM dbo_tblsalesrfq s
+         LEFT JOIN dbo_tblcompany c ON s.CompanyID = c.CompanyID
+         WHERE s.SalesRFQID = ?`,
         [salesRFQId]
       );
 
@@ -114,13 +117,29 @@ class SalesRFQController {
         });
       }
 
-      // Generate PDF (using default City value 'N/A' since it's not in the query)
-      const pdfBuffer = await generateSalesRFQPDF({
-        ...salesRFQData[0],
-        City: 'N/A' // Placeholder since City is not fetched; adjust if needed
-      }, parcels);
+      const customerAddress = [
+        customer[0].AddressLine1,
+        customer[0].AddressLine2,
+        customer[0].City,
+        customer[0].County,
+        customer[0].State,
+        customer[0].PostalCode,
+        customer[0].Country
+      ].filter(Boolean).join(', ') || 'N/A';
 
-      // Send email
+      const pdfData = {
+        Series: salesRFQData[0].Series,
+        DeliveryDate: salesRFQData[0].DeliveryDate,
+        CustomerID: salesRFQData[0].CustomerID,
+        CompanyName: salesRFQData[0].CompanyName,
+        Terms: salesRFQData[0].Terms,
+        CustomerName: customer[0].CustomerName,
+        CustomerEmail: customer[0].CustomerEmail,
+        CustomerAddress: customerAddress
+      };
+
+      const pdfBuffer = await generateSalesRFQPDF(pdfData, parcels);
+
       await sendDocumentEmail(customer[0].CustomerEmail, salesRFQData[0].Series, pdfBuffer, 'SalesRFQ');
 
       return res.status(200).json({
@@ -168,11 +187,11 @@ class SalesRFQController {
         RequiredByDate: req.body.RequiredByDate,
         DateReceived: req.body.DateReceived,
         ServiceTypeID: req.body.ServiceTypeID ? parseInt(req.body.ServiceTypeID) : null,
-        OriginWarehouseAddressID: req.body.OriginWarehouseAddressID ? parseInt(req.body.OriginWarehouseAddressID) : null,
+        OriginWarehouseID: req.body.OriginWarehouseID ? parseInt(req.body.OriginWarehouseID) : null,
         CollectionAddressID: req.body.CollectionAddressID ? parseInt(req.body.CollectionAddressID) : null,
         Status: req.body.Status,
         DestinationAddressID: req.body.DestinationAddressID ? parseInt(req.body.DestinationAddressID) : null,
-        DestinationWarehouseAddressID: req.body.DestinationWarehouseAddressID ? parseInt(req.body.DestinationWarehouseAddressID) : null,
+        DestinationWarehouseID: req.body.DestinationWarehouseID ? parseInt(req.body.DestinationWarehouseID) : null,
         BillingAddressID: req.body.BillingAddressID ? parseInt(req.body.BillingAddressID) : null,
         ShippingPriorityID: req.body.ShippingPriorityID ? parseInt(req.body.ShippingPriorityID) : null,
         Terms: req.body.Terms,
@@ -181,11 +200,10 @@ class SalesRFQController {
         PackagingRequiredYN: req.body.PackagingRequiredYN != null ? Boolean(req.body.PackagingRequiredYN) : null,
         FormCompletedYN: req.body.FormCompletedYN != null ? Boolean(req.body.FormCompletedYN) : null,
         CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
-        CompanyName: req.body.CompanyName, // Add if available in request
-        City: req.body.City, // Add if available in request
+        CompanyName: req.body.CompanyName,
+        City: req.body.City,
       };
 
-      const pool = await poolPromise;
       const result = await SalesRFQModel.updateSalesRFQ(salesRFQData);
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error) {
@@ -218,7 +236,6 @@ class SalesRFQController {
         CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
       };
 
-      const pool = await poolPromise;
       const result = await SalesRFQModel.deleteSalesRFQ(salesRFQData);
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error) {
@@ -250,7 +267,6 @@ class SalesRFQController {
         SalesRFQID: salesRFQId,
       };
 
-      const pool = await poolPromise;
       const result = await SalesRFQModel.getSalesRFQ(salesRFQData);
       return res.status(result.success ? 200 : 404).json(result);
     } catch (error) {
@@ -274,6 +290,8 @@ class SalesRFQController {
         ToDate: req.query.toDate || null,
       };
 
+      console.log('getAllSalesRFQs paginationData:', paginationData); // Log input parameters
+
       if (paginationData.PageNumber < 1) {
         return res.status(400).json({
           success: false,
@@ -293,7 +311,6 @@ class SalesRFQController {
         });
       }
 
-      const pool = await poolPromise;
       const result = await SalesRFQModel.getAllSalesRFQs(paginationData);
       return res.status(result.success ? 200 : 400).json({
         ...result,
@@ -346,7 +363,6 @@ class SalesRFQController {
         ApproverID: parseInt(approverID),
       };
 
-      const pool = await poolPromise;
       const result = await SalesRFQModel.approveSalesRFQ(approvalData);
       return res.status(result.success ? (result.isFullyApproved ? 200 : 202) : 403).json(result);
     } catch (error) {
@@ -374,7 +390,6 @@ class SalesRFQController {
         });
       }
 
-      const pool = await poolPromise;
       const result = await SalesRFQModel.getSalesRFQApprovalStatus(salesRFQId);
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error) {
