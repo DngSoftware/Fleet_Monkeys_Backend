@@ -21,6 +21,8 @@ class SalesRFQParcelModel {
         null  // p_DeletedByID
       ];
 
+      console.log('Executing SP_ManageSalesRFQParcel with params:', queryParams); // Added logging
+
       const [result] = await pool.query(
         'CALL SP_ManageSalesRFQParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_NewSalesRFQParcelID, @p_Result, @p_Message)',
         queryParams
@@ -34,11 +36,18 @@ class SalesRFQParcelModel {
         throw new Error(outParams.message || 'Failed to retrieve Sales RFQ Parcels');
       }
 
+      // Workaround: Filter results by salesRFQId in Node.js if stored procedure doesn't
+      let filteredData = result[0];
+      if (salesRFQId) {
+        filteredData = result[0].filter(parcel => parcel.SalesRFQID === parseInt(salesRFQId));
+      }
+
       return {
-        data: result[0],
-        message: outParams.message
+        data: filteredData,
+        message: filteredData.length > 0 ? outParams.message || 'Successfully retrieved Sales RFQ Parcels' : 'No parcels found for the given SalesRFQID'
       };
     } catch (err) {
+      console.error('Database error in getSalesRFQParcels:', err);
       throw new Error(`Database error: ${err.message}`);
     }
   }
@@ -63,6 +72,8 @@ class SalesRFQParcelModel {
         null  // p_DeletedByID
       ];
 
+      console.log('Executing SP_ManageSalesRFQParcel with params:', queryParams); // Added logging
+
       const [result] = await pool.query(
         'CALL SP_ManageSalesRFQParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_NewSalesRFQParcelID, @p_Result, @p_Message)',
         queryParams
@@ -78,6 +89,7 @@ class SalesRFQParcelModel {
 
       return result[0][0] || null;
     } catch (err) {
+      console.error('Database error in getSalesRFQParcelById:', err);
       throw new Error(`Database error: ${err.message}`);
     }
   }
@@ -102,6 +114,8 @@ class SalesRFQParcelModel {
         null  // p_DeletedByID
       ];
 
+      console.log('Executing SP_ManageSalesRFQParcel with params:', queryParams); // Added logging
+
       const [result] = await pool.query(
         'CALL SP_ManageSalesRFQParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_NewSalesRFQParcelID, @p_Result, @p_Message)',
         queryParams
@@ -120,6 +134,7 @@ class SalesRFQParcelModel {
         message: outParams.message
       };
     } catch (err) {
+      console.error('Database error in createSalesRFQParcel:', err);
       throw new Error(`Database error: ${err.message}`);
     }
   }
@@ -144,6 +159,8 @@ class SalesRFQParcelModel {
         null  // p_DeletedByID
       ];
 
+      console.log('Executing SP_ManageSalesRFQParcel with params:', queryParams); // Added logging
+
       const [result] = await pool.query(
         'CALL SP_ManageSalesRFQParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_NewSalesRFQParcelID, @p_Result, @p_Message)',
         queryParams
@@ -161,6 +178,7 @@ class SalesRFQParcelModel {
         message: outParams.message
       };
     } catch (err) {
+      console.error('Database error in updateSalesRFQParcel:', err);
       throw new Error(`Database error: ${err.message}`);
     }
   }
@@ -185,6 +203,8 @@ class SalesRFQParcelModel {
         DeletedByID
       ];
 
+      console.log('Executing SP_ManageSalesRFQParcel with params:', queryParams); // Added logging
+
       const [result] = await pool.query(
         'CALL SP_ManageSalesRFQParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_NewSalesRFQParcelID, @p_Result, @p_Message)',
         queryParams
@@ -202,6 +222,7 @@ class SalesRFQParcelModel {
         message: outParams.message
       };
     } catch (err) {
+      console.error('Database error in deleteSalesRFQParcel:', err);
       throw new Error(`Database error: ${err.message}`);
     }
   }
