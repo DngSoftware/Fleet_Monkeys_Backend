@@ -5,9 +5,11 @@ class PurchaseRFQController {
   static async getAllPurchaseRFQs(req, res) {
     try {
       const { pageNumber, pageSize } = req.query;
+      const parsedPageNumber = parseInt(pageNumber) || 1;
+      const parsedPageSize = parseInt(pageSize) || 10;
       const result = await PurchaseRFQModel.getAllPurchaseRFQs({
-        pageNumber: parseInt(pageNumber) || 1,
-        pageSize: parseInt(pageSize) || 10
+        pageNumber: parsedPageNumber,
+        pageSize: parsedPageSize
       });
       res.status(200).json({
         success: true,
@@ -15,7 +17,13 @@ class PurchaseRFQController {
         data: result.data,
         totalRecords: result.totalRecords,
         purchaseRFQId: null,
-        newPurchaseRFQId: null
+        newPurchaseRFQId: null,
+        pagination: {
+          pageNumber: parsedPageNumber,
+          pageSize: parsedPageSize,
+          totalRecords: result.totalRecords,
+          totalPages: Math.ceil(result.totalRecords / parsedPageSize)
+        }
       });
     } catch (err) {
       console.error('Error in getAllPurchaseRFQs:', err);
