@@ -1,14 +1,13 @@
 const poolPromise = require('../config/db.config');
 
 class SupplierQuotationModel {
-  // Get paginated Supplier Quotations
-  static async getAllSupplierQuotations({ pageNumber = 1, pageSize = 10, fromDate = null, toDate = null }) {
+   static async getAllSupplierQuotations({ pageNumber = 1, pageSize = 10, fromDate = null, toDate = null }) {
     try {
       const pool = await poolPromise;
 
       // Validate parameters
       if (pageNumber < 1) pageNumber = 1;
-      if (pageSize < 1 || pageSize > 100) pageSize = 10; // Cap pageSize at 100
+      if (pageSize < 1 || pageSize > 100) pageSize = 10;
       let formattedFromDate = null, formattedToDate = null;
 
       if (fromDate) {
@@ -26,29 +25,30 @@ class SupplierQuotationModel {
       const queryParams = [
         pageNumber,
         pageSize,
-        formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null, // Format as YYYY-MM-DD
+        formattedFromDate ? formattedFromDate.toISOString().split('T')[0] : null,
         formattedToDate ? formattedToDate.toISOString().split('T')[0] : null
       ];
 
-      // Log query parameters
       console.log('getAllSupplierQuotations params:', queryParams);
 
       // Call SP_GetAllSupplierQuotation
       const [results] = await pool.query(
-        'CALL SP_GetAllSupplierQuotation(?, ?, ?, ?)',
+        'CALL SP_GetAllSupplierQuotation(?, ?, ?, ?, @p_TotalRecords)',
         queryParams
       );
 
-      // Log results
-      console.log('getAllSupplierQuotations results:', JSON.stringify(results, null, 2));
+      // Retrieve OUT parameter
+      const [[outParams]] = await pool.query('SELECT @p_TotalRecords AS totalRecords');
 
-      // Extract total count from the second result set
-      const totalRecords = results[1]?.[0]?.TotalRecords || 0;
+      console.log('getAllSupplierQuotations results:', JSON.stringify(results, null, 2));
+      console.log('getAllSupplierQuotations outParams:', outParams);
+
+      const totalRecords = outParams.totalRecords || 0;
 
       return {
         data: results[0] || [],
         totalRecords,
-        currentPage: pageNumber,
+        pageNumber, // Changed from currentPage
         pageSize,
         totalPages: Math.ceil(totalRecords / pageSize)
       };
@@ -57,6 +57,7 @@ class SupplierQuotationModel {
       throw new Error(`Database error: ${err.message}`);
     }
   }
+
 
   // Create a new Supplier Quotation
   static async createSupplierQuotation(data) {
