@@ -8,7 +8,7 @@ const dbConfig = {
   host: '13.202.8.138',
   user: 'fleetmonkeys',
   password: 'Fleet_Monkey@Dnginc#21',
-  database: 'fleet_monkey',
+  database: 'fleet_monkey_test',
   port: 3306,
   connectionLimit: 50, // Increased for better concurrency
   queueLimit: 0,
