@@ -152,17 +152,58 @@ class PurchaseOrderModel {
 
       // Validate parameters
       if (!Number.isInteger(pageNumber) || pageNumber <= 0) {
-        throw new Error('Invalid pageNumber: must be a positive integer');
+        return {
+          success: false,
+          message: 'Invalid pageNumber: must be a positive integer',
+          data: null,
+          pagination: null
+        };
       }
-      if (!Number.isInteger(pageSize) || pageSize <= 0) {
-        throw new Error('Invalid pageSize: must be a positive integer');
+      if (!Number.isInteger(pageSize) || pageSize <= 0 || pageSize > 100) {
+        return {
+          success: false,
+          message: 'Invalid pageSize: must be between 1 and 100',
+          data: null,
+          pagination: null
+        };
+      }
+      let formattedFromDate = null, formattedToDate = null;
+      if (fromDate) {
+        formattedFromDate = new Date(fromDate);
+        if (isNaN(formattedFromDate)) {
+          return {
+            success: false,
+            message: 'Invalid fromDate',
+            data: null,
+            pagination: null
+          };
+        }
+      }
+      if (toDate) {
+        formattedToDate = new Date(toDate);
+        if (isNaN(formattedToDate)) {
+          return {
+            success: false,
+            message: 'Invalid toDate',
+            data: null,
+            pagination: null
+          };
+        }
+      }
+      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
+        return {
+          success: false,
+          message: 'fromDate cannot be later than toDate',
+          data: null,
+          pagination: null
+        };
       }
 
       const queryParams = [
         pageNumber,
         pageSize,
-        fromDate || null,
-        toDate || null
+        formattedFromDate || null,
+        formattedToDate || null
       ];
 
       const [results] = await pool.query(
@@ -174,37 +215,32 @@ class PurchaseOrderModel {
         'SELECT @p_Result AS result, @p_Message AS message'
       );
 
-      if (outParams.result !== 1) {
-        // Check error log for more details
-        await new Promise(resolve => setTimeout(resolve, 100));
-        const [[errorLog]] = await pool.query(
-          'SELECT ErrorMessage, CreatedAt FROM dbo_tblerrorlog ORDER BY CreatedAt DESC LIMIT 1'
-        );
-        throw new Error(`Stored procedure error: ${errorLog?.ErrorMessage || outParams.message || 'Unknown error'}`);
+      if (!Array.isArray(results) || results.length < 2) {
+        throw new Error('Unexpected result structure from SP_GetAllPO');
       }
 
-      // Extract TotalRecords from the second result set
-      const totalRecords = results[1] && results[1][0] ? results[1][0].TotalRecords : 0;
+      const purchaseOrders = results[0] || [];
+      const totalRecords = results[1][0]?.TotalRecords || 0;
+      const totalPages = Math.ceil(totalRecords / pageSize);
 
       return {
         success: outParams.result === 1,
         message: outParams.message || (outParams.result === 1 ? 'Purchase orders retrieved successfully' : 'Operation failed'),
-        data: results[0] || [],
-        totalRecords,
-        currentPage: pageNumber,
-        pageSize,
-        totalPages: Math.ceil(totalRecords / pageSize)
+        data: purchaseOrders,
+        pagination: {
+          totalRecords,
+          currentPage: pageNumber,
+          pageSize,
+          totalPages
+        }
       };
     } catch (error) {
       console.error('Error in getAllPurchaseOrders:', error);
       return {
         success: false,
         message: `Server error: ${error.message}`,
-        data: [],
-        totalRecords: 0,
-        currentPage: pageNumber,
-        pageSize,
-        totalPages: 0
+        data: null,
+        pagination: null
       };
     }
   }
@@ -302,7 +338,6 @@ class PurchaseOrderModel {
         throw new Error(`Purchase Order status must be Pending to approve, current status: ${status}`);
       }
 
-      // Check for existing approval
       const [existingApproval] = await connection.query(
         'SELECT 1 FROM dbo_tblpoapproval WHERE POID = ? AND ApproverID = ? AND IsDeleted = 0',
         [POID, approverID]
@@ -311,13 +346,11 @@ class PurchaseOrderModel {
         throw new Error('Approver has already approved this Purchase Order');
       }
 
-      // Record approval
       const approvalInsertResult = await this.#insertPOApproval(connection, { POID: POID, ApproverID: approverID });
       if (!approvalInsertResult.success) {
         throw new Error(`Failed to insert approval record: ${approvalInsertResult.message}`);
       }
 
-      // Get FormID
       const [form] = await connection.query(
         'SELECT FormID FROM dbo_tblform WHERE FormName = ? AND IsDeleted = 0',
         [formName]
@@ -327,7 +360,6 @@ class PurchaseOrderModel {
       }
       const formID = form[0].FormID;
 
-      // Get required approvers
       const [requiredApproversList] = await connection.query(
         `SELECT DISTINCT fra.UserID, p.FirstName
          FROM dbo_tblformroleapprover fra
@@ -338,7 +370,6 @@ class PurchaseOrderModel {
       );
       const requiredCount = requiredApproversList.length;
 
-      // Get completed approvals
       const [approvedList] = await connection.query(
         `SELECT s.ApproverID, s.ApprovedYN
          FROM dbo_tblpoapproval s
@@ -353,7 +384,6 @@ class PurchaseOrderModel {
       );
       const approved = approvedList.filter(a => a.ApprovedYN === 1).length;
 
-      // Check for mismatched ApproverIDs
       const [allApprovals] = await connection.query(
         'SELECT ApproverID FROM dbo_tblpoapproval WHERE POID = ? AND IsDeleted = 0',
         [POID]
@@ -361,14 +391,12 @@ class PurchaseOrderModel {
       const requiredUserIDs = requiredApproversList.map(a => a.UserID);
       const mismatchedApprovals = allApprovals.filter(a => !requiredUserIDs.includes(a.ApproverID));
 
-      // Debug logs
       console.log(`Approval Debug: POID=${POID}, FormID=${formID}, RequiredApprovers=${requiredCount}, Approvers=${JSON.stringify(requiredApproversList)}, CompletedApprovals=${approved}, ApprovedList=${JSON.stringify(approvedList)}, CurrentApproverID=${approverID}, MismatchedApprovals=${JSON.stringify(mismatchedApprovals)}`);
 
       let message;
       let isFullyApproved = false;
 
       if (approved >= requiredCount) {
-        // All approvals complete
         await connection.query(
           'UPDATE dbo_tblpo SET Status = ? WHERE POID = ?',
           ['Approved', POID]
@@ -376,7 +404,6 @@ class PurchaseOrderModel {
         message = 'Purchase Order fully approved.';
         isFullyApproved = true;
       } else {
-        // Partial approval
         const remaining = requiredCount - approved;
         message = `Approval recorded. Awaiting ${remaining} more approval(s).`;
       }
@@ -395,7 +422,7 @@ class PurchaseOrderModel {
       if (connection) {
         await connection.rollback();
       }
-      console.error('Database error in approvePurchaseOrder:', error);
+      console.error('Database error in approvePO:', error);
       return {
         success: false,
         message: `Approval failed: ${error.message || 'Unknown error'}`,
@@ -415,7 +442,6 @@ class PurchaseOrderModel {
       const pool = await poolPromise;
       const formName = 'Purchase Order';
 
-      // Get FormID
       const [form] = await pool.query(
         'SELECT FormID FROM dbo_tblform WHERE FormName = ? AND IsDeleted = 0',
         [formName]
@@ -425,7 +451,6 @@ class PurchaseOrderModel {
       }
       const formID = form[0].FormID;
 
-      // Get required approvers
       const [requiredApprovers] = await pool.query(
         `SELECT DISTINCT fra.UserID, p.FirstName, p.LastName
          FROM dbo_tblformroleapprover fra
@@ -435,7 +460,6 @@ class PurchaseOrderModel {
         [formID]
       );
 
-      // Get completed approvals
       const [completedApprovals] = await pool.query(
         `SELECT s.ApproverID, p.FirstName, p.LastName, s.ApproverDateTime
          FROM dbo_tblpoapproval s
@@ -450,7 +474,6 @@ class PurchaseOrderModel {
         [parseInt(POID), formID]
       );
 
-      // Prepare approval status
       const approvalStatus = requiredApprovers.map(approver => ({
         UserID: approver.UserID,
         FirstName: approver.FirstName,
@@ -472,7 +495,7 @@ class PurchaseOrderModel {
         newPOID: null
       };
     } catch (error) {
-      console.error('Error in getPurchaseOrderApprovalStatus:', error);
+      console.error('Error in getPoApprovalStatus:', error);
       throw new Error(`Error retrieving approval status: ${error.message}`);
     }
   }

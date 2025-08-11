@@ -2,14 +2,48 @@ const express = require('express');
 const router = express.Router();
 const PersonController = require('../controllers/personController');
 const authMiddleware = require('../middleware/authMiddleware');
-const upload = require('../middleware/upload');
+const { personUpload } = require('../middleware/upload');
 
-// Routes for Person management
-router.get('/', PersonController.getAllPersons); // GET /api/persons
-router.post('/', PersonController.createPerson); // POST /api/persons
-router.get('/:id', PersonController.getPersonById); // GET /api/persons/:id
-router.put('/:id', PersonController.updatePerson); // PUT /api/persons/:id
-router.delete('/:id', PersonController.deletePerson); // DELETE /api/persons/:id
-router.post('/:id/upload-image', authMiddleware, upload.single('image'), PersonController.uploadProfileImage);
+/**
+ * @route GET /api/persons
+ * @desc Retrieve all persons with pagination
+ * @access Public
+ */
+router.get('/', PersonController.getAllPersons);
+
+/**
+ * @route POST /api/persons
+ * @desc Create a new person
+ * @access Public
+ */
+router.post('/', PersonController.createPerson);
+
+/**
+ * @route GET /api/persons/:id
+ * @desc Retrieve a person by ID
+ * @access Public
+ */
+router.get('/:id', PersonController.getPersonById);
+
+/**
+ * @route PUT /api/persons/:id
+ * @desc Update a person by ID
+ * @access Public
+ */
+router.put('/:id', PersonController.updatePerson);
+
+/**
+ * @route DELETE /api/persons/:id
+ * @desc Delete a person by ID
+ * @access Public
+ */
+router.delete('/:id', PersonController.deletePerson);
+
+/**
+ * @route POST /api/persons/:id/upload-image
+ * @desc Upload a profile image for a person (PNG, JPG, JPEG)
+ * @access Protected (requires auth token)
+ */
+router.post('/:id/upload-image', authMiddleware, personUpload.single('image'), PersonController.uploadProfileImage);
 
 module.exports = router;

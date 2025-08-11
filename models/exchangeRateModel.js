@@ -1,120 +1,115 @@
 const poolPromise = require('../config/db.config');
 
 class ExchangeRateModel {
-  async updateRates(rates, baseCurrency) {
-    if (!rates || typeof rates !== 'object') {
-      throw new Error('Invalid rates data provided');
-    }
-
-    const pool = await poolPromise;
-    let connection;
+  static async populateCurrencies(currencies, createdById = 1) {
     try {
-      connection = await pool.getConnection();
-      await connection.beginTransaction();
+      const pool = await poolPromise;
+      const connection = await pool.getConnection();
 
-      for (const [currency, rate] of Object.entries(rates)) {
-        console.log(`Processing currency: ${currency}, rate: ${rate}`);
-        
-        // First, try to update existing record
-        const [updateResult] = await connection.execute(
-          `UPDATE dbo_tblexchangerates 
-           SET rate = ?, updated_at = NOW() 
-           WHERE currency_code = ? AND base_currency = ?`,
-          [rate, currency, baseCurrency]
-        );
+      try {
+        await connection.beginTransaction();
 
-        // If no rows were affected, insert new record
-        if (updateResult.affectedRows === 0) {
-          await connection.execute(
-            `INSERT INTO dbo_tblexchangerates (currency_code, rate, base_currency, updated_at)
-             VALUES (?, ?, ?, NOW())`,
-            [currency, rate, baseCurrency]
+        for (const currency of currencies) {
+          const [existing] = await connection.query(
+            'SELECT CurrencyID FROM dbo_tblcurrency1 WHERE CurrencyName = ? AND IsDeleted = 0',
+            [currency.CurrencyName]
           );
-          console.log(`Inserted new rate for ${currency}: ${rate}`);
-        } else {
-          console.log(`Updated existing rate for ${currency}: ${rate}`);
+
+          if (!existing.length) {
+            await connection.query(
+              'INSERT INTO dbo_tblcurrency1 (CurrencyName, CreatedByID) VALUES (?, ?)',
+              [currency.CurrencyName, createdById]
+            );
+          }
         }
-      }
 
-      await connection.commit();
-      console.log('Exchange rates updated successfully');
-    } catch (error) {
-      if (connection) await connection.rollback();
-      console.error('updateRates error:', {
-        message: error.message,
-        code: error.code,
-        errno: error.errno,
-        sqlState: error.sqlState,
-        sqlMessage: error.sqlMessage
-      });
-      throw new Error(`Database error: ${error.message}`);
-    } finally {
-      if (connection) connection.release();
+        await connection.commit();
+        return { message: 'Currencies populated successfully' };
+      } catch (err) {
+        await connection.rollback();
+        throw new Error(`Database error: ${err.message}`);
+      } finally {
+        connection.release();
+      }
+    } catch (err) {
+      console.error('populateCurrencies error:', err);
+      throw new Error(`Database error: ${err.message}`);
     }
   }
 
-  async getRates() {
-    const pool = await poolPromise;
-    let connection;
+  static async storeExchangeRate(fromCurrencyId, toCurrencyId, rate, date) {
     try {
-      connection = await pool.getConnection();
-      const [rows] = await connection.execute('SELECT * FROM dbo_tblexchangerates ORDER BY currency_code');
-      return rows;
-    } catch (error) {
-      console.error('getRates error:', {
-        message: error.message,
-        code: error.code,
-        errno: error.errno,
-        sqlState: error.sqlState,
-        sqlMessage: error.sqlMessage
-      });
-      throw new Error(`Database error: ${error.message}`);
-    } finally {
-      if (connection) connection.release();
+      const pool = await poolPromise;
+
+      if (!Number.isInteger(Number(fromCurrencyId)) || fromCurrencyId <= 0) {
+        throw new Error('Invalid FromCurrencyID');
+      }
+      if (!Number.isInteger(Number(toCurrencyId)) || toCurrencyId <= 0) {
+        throw new Error('Invalid ToCurrencyID');
+      }
+      if (!rate || isNaN(parseFloat(rate))) {
+        throw new Error('Invalid ExchangeRate');
+      }
+      if (!date || isNaN(new Date(date))) {
+        throw new Error('Invalid ExchangeRatesDate');
+      }
+
+      const query = 'INSERT INTO dbo_tblexchangerates (FromCurrencyID, ToCurrencyID, ExchangeRatesDate, ExchangeRate) VALUES (?, ?, ?, ?)';
+      const params = [fromCurrencyId, toCurrencyId, date, parseFloat(rate)];
+
+      const [result] = await pool.query(query, params);
+      return {
+        exchangeRateId: result.insertId,
+        message: 'Exchange rate stored successfully',
+      };
+    } catch (err) {
+      console.error('storeExchangeRate error:', err);
+      throw new Error(`Database error: ${err.message}`);
     }
   }
 
-  // Alternative method using ON DUPLICATE KEY UPDATE (if you have a unique constraint)
-  async updateRatesWithUpsert(rates, baseCurrency) {
-    if (!rates || typeof rates !== 'object') {
-      throw new Error('Invalid rates data provided');
-    }
-
-    const pool = await poolPromise;
-    let connection;
+  static async getExchangeRate(fromCurrencyId, toCurrencyId, date = new Date().toISOString().slice(0, 10)) {
     try {
-      connection = await pool.getConnection();
-      await connection.beginTransaction();
+      const pool = await poolPromise;
 
-      for (const [currency, rate] of Object.entries(rates)) {
-        console.log(`Processing currency: ${currency}, rate: ${rate}`);
-        
-        await connection.execute(
-          `INSERT INTO dbo_tblexchangerates (currency_code, rate, base_currency, updated_at)
-           VALUES (?, ?, ?, NOW())
-           ON DUPLICATE KEY UPDATE 
-           rate = VALUES(rate), 
-           updated_at = NOW()`,
-          [currency, rate, baseCurrency]
-        );
+      if (!Number.isInteger(Number(fromCurrencyId)) || fromCurrencyId <= 0) {
+        throw new Error('Invalid FromCurrencyID');
+      }
+      if (!Number.isInteger(Number(toCurrencyId)) || toCurrencyId <= 0) {
+        throw new Error('Invalid ToCurrencyID');
+      }
+      if (!date || isNaN(new Date(date))) {
+        throw new Error('Invalid ExchangeRatesDate');
       }
 
-      await connection.commit();
-      console.log('Exchange rates updated successfully using upsert');
-    } catch (error) {
-      if (connection) await connection.rollback();
-      console.error('updateRatesWithUpsert error:', {
-        message: error.message,
-        code: error.code,
-        errno: error.errno,
-        sqlState: error.sqlState,
-        sqlMessage: error.sqlMessage
-      });
-      throw new Error(`Database error: ${error.message}`);
-    } finally {
-      if (connection) connection.release();
+      const [results] = await pool.query(
+        'SELECT ExchangeRate, ExchangeRatesDate FROM dbo_tblexchangerates WHERE FromCurrencyID = ? AND ToCurrencyID = ? AND ExchangeRatesDate = ?',
+        [fromCurrencyId, toCurrencyId, date]
+      );
+
+      if (!results.length) {
+        throw new Error('Exchange rate not found for the specified currency pair and date');
+      }
+
+      return results[0];
+    } catch (err) {
+      console.error('getExchangeRate error:', err);
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
+
+  static async getAllCurrencies() {
+    try {
+      const pool = await poolPromise;
+      const [results] = await pool.query(
+        'SELECT CurrencyID, CurrencyName FROM dbo_tblcurrency1 WHERE IsDeleted = 0'
+      );
+      return results;
+    } catch (err) {
+      console.error('getAllCurrencies error:', err);
+      throw new Error(`Database error: ${err.message}`);
     }
   }
 }
 
-module.exports = new ExchangeRateModel();
+module.exports = ExchangeRateModel;

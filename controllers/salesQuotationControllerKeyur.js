@@ -1,7 +1,7 @@
-const SalesQuotationModel = require('../models/salesQuotationModel');
+const SalesQuotationModel = require('../models/salesQuotationModelKeyur');
 
 class SalesQuotationController {
-   // Get all Sales Quotations
+  // Get all Sales Quotations
   static async getAllSalesQuotations(req, res) {
     try {
       const { pageNumber, pageSize, sortColumn, sortDirection, fromDate, toDate, status, customerid, supplierid } = req.query;
@@ -65,46 +65,16 @@ class SalesQuotationController {
   // Create a new Sales Quotation
   static async createSalesQuotation(req, res) {
     try {
-      const data = {
-        salesrfqid: req.body.salesrfqid,
-        purchaseRFQId: req.body.purchaseRFQId,
-        supplierid: req.body.supplierid,
-        status: req.body.status,
-        originwarehouseaddressid: req.body.originwarehouseaddressid,
-        collectionaddressid: req.body.collectionaddressid,
-        billingaddressid: req.body.billingaddressid,
-        destinationaddressid: req.body.destinationaddressid,
-        destinationwarehouseaddressid: req.body.destinationwarehouseaddressid,
-        collectionwarehouseid: req.body.collectionwarehouseid,
-        postingdate: req.body.postingdate,
-        deliverydate: req.body.deliverydate,
-        requiredbydate: req.body.requiredbydate,
-        datereceived: req.body.datereceived,
-        servicetypeid: req.body.servicetypeid,
-        externalrefno: req.body.externalrefno,
-        externalsupplierid: req.body.externalsupplierid,
-        customerid: req.body.customerid,
-        companyid: req.body.companyid,
-        terms: req.body.terms,
-        packagingrequiredyn: req.body.packagingrequiredyn,
-        collectfromsupplieryn: req.body.collectfromsupplieryn,
-        salesquotationcompletedyn: req.body.salesquotationcompletedyn,
-        shippingpriorityid: req.body.shippingpriorityid,
-        validtilldate: req.body.validtilldate,
-        currencyid: req.body.currencyid,
-        suppliercontactpersonid: req.body.suppliercontactpersonid,
-        isdeliveryonly: req.body.isdeliveryonly,
-        taxesandothercharges: req.body.taxesandothercharges,
-        createdById: req.body.createdById
-      };
+      const data = req.body;
 
-      if (!data.purchaseRFQId || !data.createdById) {
+      // Validate required fields
+      if (!data.purchaseRFQID || !data.createdByID) {
         return res.status(400).json({
           success: false,
-          message: 'purchaserfqid and createdbyid are required.',
+          message: 'PurchaseRFQID and CreatedByID are required.',
           data: null,
-          salesquotationid: null,
-         newSalesQuotationId: null
+          salesQuotationID: null,
+          newSalesQuotationID: null
         });
       }
 
@@ -113,8 +83,8 @@ class SalesQuotationController {
         success: true,
         message: result.message,
         data: null,
-        salesquotationid: null,
-        newSalesQuotationId: result.newSalesQuotationId
+        salesQuotationID: null,
+        newSalesQuotationID: result.newSalesQuotationID
       });
     } catch (err) {
       console.error('Error in createSalesQuotation:', err);
@@ -122,14 +92,13 @@ class SalesQuotationController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        salesquotationid: null,
-        newSalesQuotationId: null
-
+        salesQuotationID: null,
+        newSalesQuotationID: null
       });
     }
   }
 
-  // Get a single Sales Quotation by ID
+  // Other methods unchanged for brevity
   static async getSalesQuotationById(req, res) {
     try {
       const { id } = req.params;
@@ -137,18 +106,18 @@ class SalesQuotationController {
       if (!salesQuotation) {
         return res.status(404).json({
           success: false,
-          message: 'Sales Quotation not found.',
+          message: 'Sales Quotation not found or deleted.',
           data: null,
-          salesquotationid: null,
-          newsalesquotationid: null
+          salesQuotationID: null,
+          newSalesQuotationID: null
         });
       }
       res.status(200).json({
         success: true,
         message: 'Sales Quotation retrieved successfully.',
         data: salesQuotation,
-        salesquotationid: id,
-        newsalesquotationid: null
+        salesQuotationID: id,
+        newSalesQuotationID: null
       });
     } catch (err) {
       console.error('Error in getSalesQuotationById:', err);
@@ -156,77 +125,32 @@ class SalesQuotationController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        salesquotationid: null,
-        newsalesquotationid: null
+        salesQuotationID: null,
+        newSalesQuotationID: null
       });
     }
   }
 
-  // Update a Sales Quotationrg
   static async updateSalesQuotation(req, res) {
     try {
       const { id } = req.params;
-      const data = {
-        salesrfqid: req.body.salesrfqid,
-        purchaserfqid: req.body.purchaserfqid,
-        supplierid: req.body.supplierid,
-        status: req.body.status,
-        originwarehouseaddressid: req.body.originwarehouseaddressid,
-        collectionaddressid: req.body.collectionaddressid,
-        billingaddressid: req.body.billingaddressid,
-        destinationaddressid: req.body.destinationaddressid,
-        destinationwarehouseaddressid: req.body.destinationwarehouseaddressid,
-        collectionwarehouseid: req.body.collectionwarehouseid,
-        postingdate: req.body.postingdate,
-        deliverydate: req.body.deliverydate,
-        requiredbydate: req.body.requiredbydate,
-        datereceived: req.body.datereceived,
-        servicetypeid: req.body.servicetypeid,
-        externalrefno: req.body.externalrefno,
-        externalsupplierid: req.body.externalsupplierid,
-        customerid: req.body.customerid,
-        companyid: req.body.companyid,
-        terms: req.body.terms,
-        packagingrequiredyn: req.body.packagingrequiredyn,
-        collectfromsupplieryn: req.body.collectfromsupplieryn,
-        salesquotationcompletedyn: req.body.salesquotationcompletedyn,
-        shippingpriorityid: req.body.shippingpriorityid,
-        validtilldate: req.body.validtilldate,
-        currencyid: req.body.currencyid,
-        suppliercontactpersonid: req.body.suppliercontactpersonid,
-        isdeliveryonly: req.body.isdeliveryonly,
-        taxesandothercharges: req.body.taxesandothercharges,
-        createdbyid: req.body.createdbyid,
-        supplierquotationparcelid: req.body.supplierquotationparcelid
-      };
-
-      if (!data.createdbyid) {
+      const data = req.body;
+      if (!data.deletedByID) {
         return res.status(400).json({
           success: false,
-          message: 'createdbyid is required.',
+          message: 'DeletedByID is required.',
           data: null,
-          salesquotationid: null,
-          newsalesquotationid: null
+          salesQuotationID: null,
+          newSalesQuotationID: null
         });
       }
-
-      if (data.supplierquotationparcelid && (!Array.isArray(data.supplierquotationparcelid) || data.supplierquotationparcelid.length === 0)) {
-        return res.status(400).json({
-          success: false,
-          message: 'supplierquotationparcelid must be a non-empty array.',
-          data: null,
-          salesquotationid: null,
-          newsalesquotationid: null
-        });
-      }
-
       const result = await SalesQuotationModel.updateSalesQuotation(parseInt(id), data);
       res.status(200).json({
         success: true,
         message: result.message,
         data: null,
-        salesquotationid: id,
-        newsalesquotationid: null
+        salesQuotationID: id,
+        newSalesQuotationID: null
       });
     } catch (err) {
       console.error('Error in updateSalesQuotation:', err);
@@ -234,34 +158,32 @@ class SalesQuotationController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        salesquotationid: null,
-        newsalesquotationid: null
+        salesQuotationID: null,
+        newSalesQuotationID: null
       });
     }
   }
 
-  // Delete a Sales Quotation
   static async deleteSalesQuotation(req, res) {
     try {
       const { id } = req.params;
-      const deletedbyid = req.body.deletedbyid;
-      if (!deletedbyid) {
+      const { deletedByID } = req.body;
+      if (!deletedByID) {
         return res.status(400).json({
           success: false,
-          message: 'deletedbyid is required.',
+          message: 'DeletedByID is required.',
           data: null,
-          salesquotationid: null,
-          newsalesquotationid: null
+          salesQuotationID: null,
+          newSalesQuotationID: null
         });
       }
-
-      const result = await SalesQuotationModel.deleteSalesQuotation(parseInt(id), deletedbyid);
+      const result = await SalesQuotationModel.deleteSalesQuotation(parseInt(id), deletedByID);
       res.status(200).json({
         success: true,
         message: result.message,
         data: null,
-        salesquotationid: id,
-        newsalesquotationid: null
+        salesQuotationID: id,
+        newSalesQuotationID: null
       });
     } catch (err) {
       console.error('Error in deleteSalesQuotation:', err);
@@ -269,42 +191,12 @@ class SalesQuotationController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        salesquotationid: null,
-        newsalesquotationid: null
+        salesQuotationID: null,
+        newSalesQuotationID: null
       });
     }
   }
 
-  // Get Supplier Quotation Parcels by SalesRFQID
-  static async getSupplierQuotationParcels(req, res) {
-    try {
-      const { salesrfqid } = req.params;
-      if (!salesrfqid || isNaN(parseInt(salesrfqid))) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid or missing salesrfqid',
-          data: null
-        });
-      }
-
-      const parcels = await SalesQuotationModel.getSupplierQuotationParcels(parseInt(salesrfqid));
-      res.status(200).json({
-        success: true,
-        message: 'Supplier quotation parcels retrieved successfully.',
-        data: parcels
-      });
-    } catch (err) {
-      console.error('Error in getSupplierQuotationParcels:', err);
-      res.status(500).json({
-        success: false,
-        message: `Server error: ${err.message}`,
-        data: null
-      });
-    }
-  
-  }
-
-  // Approve a Sales Quotation
   static async approveSalesQuotation(req, res) {
     try {
       const { SalesQuotationID } = req.body;
@@ -315,8 +207,8 @@ class SalesQuotationController {
           success: false,
           message: 'salesQuotationID is required',
           data: null,
-          salesQuotationId: null,
-          newSalesQuotationId: null
+          salesQuotationID: null,
+          newSalesQuotationID: null
         });
       }
 
@@ -325,8 +217,8 @@ class SalesQuotationController {
           success: false,
           message: 'Authentication required',
           data: null,
-          salesQuotationId: null,
-          newSalesQuotationId: null
+          salesQuotationID: null,
+          newSalesQuotationID: null
         });
       }
 
@@ -343,8 +235,8 @@ class SalesQuotationController {
         success: false,
         message: `Server error: ${err.message}`,
         data: null,
-        salesQuotationId: null,
-        newSalesQuotationId: null
+        salesQuotationID: null,
+        newSalesQuotationID: null
       });
     }
   }

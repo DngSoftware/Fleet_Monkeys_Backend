@@ -8,44 +8,30 @@ class ShippingParcelController {
         PInvoiceID: req.body.PInvoiceID ? parseInt(req.body.PInvoiceID) : null,
         SalesQuotationID: req.body.SalesQuotationID ? parseInt(req.body.SalesQuotationID) : null,
         SupplierID: req.body.SupplierID ? parseInt(req.body.SupplierID) : null,
-        ParcelString: req.body.ParcelString,
+        ParcelString: req.body.ParcelString || 'NA',
         ParcelNumber: req.body.ParcelNumber ? parseInt(req.body.ParcelNumber) : null,
         ParcelOutOf: req.body.ParcelOutOf ? parseInt(req.body.ParcelOutOf) : null,
         Type: req.body.Type ? parseInt(req.body.Type) : null,
-        IsRepackagedYN: req.body.IsRepackagedYN != null ? Boolean(req.body.IsRepackagedYN) : null,
-        ShippingAndHandellingRequirement: req.body.ShippingAndHandellingRequirement,
-        Notes: req.body.Notes,
+        IsRepackagedYN: req.body.IsRepackagedYN != null ? Boolean(req.body.IsRepackagedYN) : false,
+        ShippingAndHandellingRequirement: req.body.ShippingAndHandellingRequirement || 'NA',
+        Notes: req.body.Notes || 'NA',
         LoadID: req.body.LoadID ? parseInt(req.body.LoadID) : null,
         LoadTrailerID: req.body.LoadTrailerID ? parseInt(req.body.LoadTrailerID) : null,
         LocalLoadID: req.body.LocalLoadID ? parseInt(req.body.LocalLoadID) : null,
         ParcelDimensionID: req.body.ParcelDimensionID ? parseInt(req.body.ParcelDimensionID) : null,
-        QRCodeString: req.body.QRCodeString,
+        QRCodeString: req.body.QRCodeString || 'NA',
         Volume: req.body.Volume ? parseFloat(req.body.Volume) : null,
         VolumeUOMID: req.body.VolumeUOMID ? parseInt(req.body.VolumeUOMID) : null,
         Weight: req.body.Weight ? parseFloat(req.body.Weight) : null,
         WeightUOMID: req.body.WeightUOMID ? parseInt(req.body.WeightUOMID) : null,
-        ParcelReceivedBy: req.body.ParcelReceivedBy,
-        ParcelDeliveredDatetime: req.body.ParcelDeliveredDatetime,
-        Signature: req.body.Signature,
-        ReceivedYN: req.body.ReceivedYN != null ? Boolean(req.body.ReceivedYN) : null,
+        ParcelReceivedBy: req.body.ParcelReceivedBy || 'NA',
+        ParcelDeliveredDatetime: req.body.ParcelDeliveredDatetime ? new Date(req.body.ParcelDeliveredDatetime) : null,
+        ReceivedYN: req.body.ReceivedYN != null ? Boolean(req.body.ReceivedYN) : false,
         CollectionLoadID: req.body.CollectionLoadID ? parseInt(req.body.CollectionLoadID) : null,
         CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
-        ChangedBy: req.body.ChangedBy || req.user.username || 'NA',
-        OpenDimensionForm: req.body.OpenDimensionForm != null ? Boolean(req.body.OpenDimensionForm) : false, // New field
       };
 
-      if (!parcelData.CreatedByID) {
-        return res.status(400).json({
-          success: false,
-          message: 'CreatedByID is required',
-          data: null,
-          parcelId: null,
-          newParcelId: null,
-        });
-      }
-
       const result = await ShippingParcelModel.createShippingParcel(parcelData);
-      // Debug log to inspect the result
       console.log('Create ShippingParcel result:', result);
       return res.status(result.success ? 201 : 400).json(result);
     } catch (error) {
@@ -79,41 +65,28 @@ class ShippingParcelController {
         PInvoiceID: req.body.PInvoiceID ? parseInt(req.body.PInvoiceID) : null,
         SalesQuotationID: req.body.SalesQuotationID ? parseInt(req.body.SalesQuotationID) : null,
         SupplierID: req.body.SupplierID ? parseInt(req.body.SupplierID) : null,
-        ParcelString: req.body.ParcelString,
+        ParcelString: req.body.ParcelString || null,
         ParcelNumber: req.body.ParcelNumber ? parseInt(req.body.ParcelNumber) : null,
         ParcelOutOf: req.body.ParcelOutOf ? parseInt(req.body.ParcelOutOf) : null,
         Type: req.body.Type ? parseInt(req.body.Type) : null,
         IsRepackagedYN: req.body.IsRepackagedYN != null ? Boolean(req.body.IsRepackagedYN) : null,
-        ShippingAndHandellingRequirement: req.body.ShippingAndHandellingRequirement,
-        Notes: req.body.Notes,
+        ShippingAndHandellingRequirement: req.body.ShippingAndHandellingRequirement || null,
+        Notes: req.body.Notes || null,
         LoadID: req.body.LoadID ? parseInt(req.body.LoadID) : null,
         LoadTrailerID: req.body.LoadTrailerID ? parseInt(req.body.LoadTrailerID) : null,
         LocalLoadID: req.body.LocalLoadID ? parseInt(req.body.LocalLoadID) : null,
         ParcelDimensionID: req.body.ParcelDimensionID ? parseInt(req.body.ParcelDimensionID) : null,
-        QRCodeString: req.body.QRCodeString,
+        QRCodeString: req.body.QRCodeString || null,
         Volume: req.body.Volume ? parseFloat(req.body.Volume) : null,
         VolumeUOMID: req.body.VolumeUOMID ? parseInt(req.body.VolumeUOMID) : null,
         Weight: req.body.Weight ? parseFloat(req.body.Weight) : null,
         WeightUOMID: req.body.WeightUOMID ? parseInt(req.body.WeightUOMID) : null,
-        ParcelReceivedBy: req.body.ParcelReceivedBy,
-        ParcelDeliveredDatetime: req.body.ParcelDeliveredDatetime,
-        Signature: req.body.Signature,
+        ParcelReceivedBy: req.body.ParcelReceivedBy || null,
+        ParcelDeliveredDatetime: req.body.ParcelDeliveredDatetime ? new Date(req.body.ParcelDeliveredDatetime) : null,
         ReceivedYN: req.body.ReceivedYN != null ? Boolean(req.body.ReceivedYN) : null,
         CollectionLoadID: req.body.CollectionLoadID ? parseInt(req.body.CollectionLoadID) : null,
         CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
-        ChangedBy: req.body.ChangedBy || req.user.username || 'NA',
-        OpenDimensionForm: req.body.OpenDimensionForm != null ? Boolean(req.body.OpenDimensionForm) : false, // New field
       };
-
-      if (!parcelData.CreatedByID) {
-        return res.status(400).json({
-          success: false,
-          message: 'CreatedByID is required',
-          data: null,
-          parcelId: parcelId,
-          newParcelId: null,
-        });
-      }
 
       const result = await ShippingParcelModel.updateShippingParcel(parcelData);
       return res.status(result.success ? 200 : 400).json(result);
@@ -144,24 +117,45 @@ class ShippingParcelController {
 
       const parcelData = {
         ParcelID: parcelId,
-        CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
-        ChangedBy: req.body.ChangedBy || req.user.username || 'NA',
+        DeletedByID: parseInt(req.body.DeletedByID) || req.user.personId,
       };
-
-      if (!parcelData.CreatedByID) {
-        return res.status(400).json({
-          success: false,
-          message: 'CreatedByID is required',
-          data: null,
-          parcelId: parcelId,
-          newParcelId: null,
-        });
-      }
 
       const result = await ShippingParcelModel.deleteShippingParcel(parcelData);
       return res.status(result.success ? 200 : 400).json(result);
     } catch (error) {
       console.error('Delete ShippingParcel error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        parcelId: null,
+        newParcelId: null,
+      });
+    }
+  }
+
+  static async hardDeleteShippingParcel(req, res) {
+    try {
+      const parcelId = parseInt(req.params.id);
+      if (isNaN(parcelId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing ParcelID',
+          data: null,
+          parcelId: null,
+          newParcelId: null,
+        });
+      }
+
+      const parcelData = {
+        ParcelID: parcelId,
+        DeletedByID: parseInt(req.body.DeletedByID) || req.user.personId,
+      };
+
+      const result = await ShippingParcelModel.hardDeleteShippingParcel(parcelData);
+      return res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+      console.error('Hard Delete ShippingParcel error:', error);
       return res.status(500).json({
         success: false,
         message: `Server error: ${error.message}`,
@@ -208,6 +202,8 @@ class ShippingParcelController {
       const paginationData = {
         PageNumber: req.query.pageNumber ? parseInt(req.query.pageNumber) : 1,
         PageSize: req.query.pageSize ? parseInt(req.query.pageSize) : 10,
+        FromDate: req.query.fromDate || null,
+        ToDate: req.query.toDate || null,
       };
 
       if (paginationData.PageNumber < 1) {
@@ -215,6 +211,7 @@ class ShippingParcelController {
           success: false,
           message: 'PageNumber must be greater than 0',
           data: null,
+          totalRecords: 0,
           parcelId: null,
           newParcelId: null,
         });
@@ -224,6 +221,7 @@ class ShippingParcelController {
           success: false,
           message: 'PageSize must be between 1 and 100',
           data: null,
+          totalRecords: 0,
           parcelId: null,
           newParcelId: null,
         });
@@ -245,6 +243,7 @@ class ShippingParcelController {
         success: false,
         message: `Server error: ${error.message}`,
         data: null,
+        totalRecords: 0,
         parcelId: null,
         newParcelId: null,
       });
@@ -259,8 +258,12 @@ class ShippingParcelController {
           success: false,
           message: 'Invalid or missing SalesQuotationID',
           data: null,
+          totalRecords: 0,
           parcelId: null,
           newParcelId: null,
+          salesQuotationId: null,
+          pInvoiceId: null,
+          salesRFQId: null,
         });
       }
 
@@ -268,6 +271,8 @@ class ShippingParcelController {
         SalesQuotationID: salesQuotationId,
         PageNumber: req.query.pageNumber ? parseInt(req.query.pageNumber) : 1,
         PageSize: req.query.pageSize ? parseInt(req.query.pageSize) : 10,
+        FromDate: req.query.fromDate || null,
+        ToDate: req.query.toDate || null,
       };
 
       if (paginationData.PageNumber < 1) {
@@ -275,8 +280,12 @@ class ShippingParcelController {
           success: false,
           message: 'PageNumber must be greater than 0',
           data: null,
+          totalRecords: 0,
           parcelId: null,
           newParcelId: null,
+          salesQuotationId: salesQuotationId,
+          pInvoiceId: null,
+          salesRFQId: null,
         });
       }
       if (paginationData.PageSize < 1 || paginationData.PageSize > 100) {
@@ -284,8 +293,12 @@ class ShippingParcelController {
           success: false,
           message: 'PageSize must be between 1 and 100',
           data: null,
+          totalRecords: 0,
           parcelId: null,
           newParcelId: null,
+          salesQuotationId: salesQuotationId,
+          pInvoiceId: null,
+          salesRFQId: null,
         });
       }
 
@@ -305,8 +318,105 @@ class ShippingParcelController {
         success: false,
         message: `Server error: ${error.message}`,
         data: null,
+        totalRecords: 0,
         parcelId: null,
         newParcelId: null,
+        salesQuotationId: req.params.salesQuotationId,
+        pInvoiceId: null,
+        salesRFQId: null,
+      });
+    }
+  }
+
+  static async getShippingParcelsByPInvoice(req, res) {
+    try {
+      const pInvoiceId = parseInt(req.params.pInvoiceId);
+      const salesQuotationId = parseInt(req.query.salesQuotationId);
+      if (isNaN(pInvoiceId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing PInvoiceID',
+          data: null,
+          totalRecords: 0,
+          parcelId: null,
+          newParcelId: null,
+          salesQuotationId: salesQuotationId,
+          pInvoiceId: null,
+          salesRFQId: null,
+        });
+      }
+      if (isNaN(salesQuotationId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing SalesQuotationID',
+          data: null,
+          totalRecords: 0,
+          parcelId: null,
+          newParcelId: null,
+          salesQuotationId: null,
+          pInvoiceId: pInvoiceId,
+          salesRFQId: null,
+        });
+      }
+
+      const paginationData = {
+        PInvoiceID: pInvoiceId,
+        SalesQuotationID: salesQuotationId,
+        PageNumber: req.query.pageNumber ? parseInt(req.query.pageNumber) : 1,
+        PageSize: req.query.pageSize ? parseInt(req.query.pageSize) : 10,
+        FromDate: req.query.fromDate || null,
+        ToDate: req.query.toDate || null,
+      };
+
+      if (paginationData.PageNumber < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageNumber must be greater than 0',
+          data: null,
+          totalRecords: 0,
+          parcelId: null,
+          newParcelId: null,
+          salesQuotationId: salesQuotationId,
+          pInvoiceId: pInvoiceId,
+          salesRFQId: null,
+        });
+      }
+      if (paginationData.PageSize < 1 || paginationData.PageSize > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageSize must be between 1 and 100',
+          data: null,
+          totalRecords: 0,
+          parcelId: null,
+          newParcelId: null,
+          salesQuotationId: salesQuotationId,
+          pInvoiceId: pInvoiceId,
+          salesRFQId: null,
+        });
+      }
+
+      const result = await ShippingParcelModel.getShippingParcelsByPInvoice(paginationData);
+      return res.status(result.success ? 200 : 400).json({
+        ...result,
+        pagination: {
+          pageNumber: paginationData.PageNumber,
+          pageSize: paginationData.PageSize,
+          totalRecords: result.totalRecords || 0,
+          totalPages: Math.ceil(result.totalRecords / paginationData.PageSize),
+        },
+      });
+    } catch (error) {
+      console.error('Get ShippingParcelsByPInvoice error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        totalRecords: 0,
+        parcelId: null,
+        newParcelId: null,
+        salesQuotationId: req.query.salesQuotationId,
+        pInvoiceId: req.params.pInvoiceId,
+        salesRFQId: null,
       });
     }
   }
@@ -340,7 +450,7 @@ class ShippingParcelController {
       }
 
       const qrCodeString = result.data.QRCodeString;
-      if (!qrCodeString) {
+      if (!qrCodeString || qrCodeString === 'NA') {
         return res.status(400).json({
           success: false,
           message: 'QRCodeString is null or empty',

@@ -13,8 +13,9 @@ class SalesOrderModel {
         salesOrderData.CompanyID ? parseInt(salesOrderData.CompanyID) : null,
         salesOrderData.CustomerID ? parseInt(salesOrderData.CustomerID) : null,
         salesOrderData.SupplierID ? parseInt(salesOrderData.SupplierID) : null,
-        salesOrderData.OriginAddressID ? parseInt(salesOrderData.OriginAddressID) : null,
+        salesOrderData.OriginWarehouseID ? parseInt(salesOrderData.OriginWarehouseID) : null,
         salesOrderData.DestinationAddressID ? parseInt(salesOrderData.DestinationAddressID) : null,
+        salesOrderData.DestinationWarehouseID ? parseInt(salesOrderData.DestinationWarehouseID) : null,
         salesOrderData.BillingAddressID ? parseInt(salesOrderData.BillingAddressID) : null,
         salesOrderData.CollectionAddressID ? parseInt(salesOrderData.CollectionAddressID) : null,
         salesOrderData.ShippingPriorityID ? parseInt(salesOrderData.ShippingPriorityID) : null,
@@ -101,12 +102,12 @@ class SalesOrderModel {
         );
         if (supplierCheck.length === 0) errors.push(`SupplierID ${salesOrderData.SupplierID} does not exist`);
       }
-      if (salesOrderData.OriginAddressID) {
-        const [addressCheck] = await pool.query(
-          'SELECT 1 FROM dbo_tbladdresses WHERE AddressID = ? AND (IsDeleted = 0 OR IsDeleted IS NULL)',
-          [parseInt(salesOrderData.OriginAddressID)]
+      if (salesOrderData.OriginWarehouseID) {
+        const [warehouseCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblwarehouse WHERE WarehouseID = ? AND (IsDeleted = 0 OR IsDeleted IS NULL)',
+          [parseInt(salesOrderData.OriginWarehouseID)]
         );
-        if (addressCheck.length === 0) errors.push(`OriginAddressID ${salesOrderData.OriginAddressID} does not exist`);
+        if (warehouseCheck.length === 0) errors.push(`OriginWarehouseID ${salesOrderData.OriginWarehouseID} does not exist`);
       }
       if (salesOrderData.DestinationAddressID) {
         const [addressCheck] = await pool.query(
@@ -114,6 +115,13 @@ class SalesOrderModel {
           [parseInt(salesOrderData.DestinationAddressID)]
         );
         if (addressCheck.length === 0) errors.push(`DestinationAddressID ${salesOrderData.DestinationAddressID} does not exist`);
+      }
+      if (salesOrderData.DestinationWarehouseID) {
+        const [warehouseCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblwarehouse WHERE WarehouseID = ? AND (IsDeleted = 0 OR IsDeleted IS NULL)',
+          [parseInt(salesOrderData.DestinationWarehouseID)]
+        );
+        if (warehouseCheck.length === 0) errors.push(`DestinationWarehouseID ${salesOrderData.DestinationWarehouseID} does not exist`);
       }
       if (salesOrderData.BillingAddressID) {
         const [addressCheck] = await pool.query(

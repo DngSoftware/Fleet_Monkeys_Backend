@@ -1,306 +1,237 @@
 const LoadModel = require('../models/loadModel');
 
 class LoadController {
-  // Get all Loads with pagination
-  static async getAllLoads(req, res) {
+  static async createLoad(req, res) {
     try {
-      const { pageNumber, pageSize, fromDate, toDate } = req.query;
+      const loadData = {
+        LoadCode: req.body.LoadCode || null,
+        DriverID: req.body.DriverID ? parseInt(req.body.DriverID) : null,
+        VehicleID: req.body.VehicleID ? parseInt(req.body.VehicleID) : null,
+        CompanyID: req.body.CompanyID ? parseInt(req.body.CompanyID) : null,
+        OriginWarehouseID: req.body.OriginWarehouseID ? parseInt(req.body.OriginWarehouseID) : null,
+        DestinationAddressID: req.body.DestinationAddressID ? parseInt(req.body.DestinationAddressID) : null,
+        DestinationWarehouseID: req.body.DestinationWarehouseID ? parseInt(req.body.DestinationWarehouseID) : null,
+        AvailableToLoadDateTime: req.body.AvailableToLoadDateTime ? new Date(req.body.AvailableToLoadDateTime) : null,
+        LoadStartDate: req.body.LoadStartDate ? new Date(req.body.LoadStartDate) : null,
+        LoadStatusID: req.body.LoadStatusID ? parseInt(req.body.LoadStatusID) : null,
+        LoadTypeID: req.body.LoadTypeID ? parseInt(req.body.LoadTypeID) : null,
+        SortOrderID: req.body.SortOrderID ? parseInt(req.body.SortOrderID) : null,
+        Weight: req.body.Weight ? parseFloat(req.body.Weight) : null,
+        Volume: req.body.Volume ? parseFloat(req.body.Volume) : null,
+        WeightUOMID: req.body.WeightUOMID ? parseInt(req.body.WeightUOMID) : null,
+        VolumeUOMID: req.body.VolumeUOMID ? parseInt(req.body.VolumeUOMID) : null,
+        RepackagedPalletOrTobaccoID: req.body.RepackagedPalletOrTobaccoID ? parseInt(req.body.RepackagedPalletOrTobaccoID) : null,
+        CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
+      };
 
-      let parsedPageNumber = parseInt(pageNumber, 10);
-      let parsedPageSize = parseInt(pageSize, 10);
-      if (isNaN(parsedPageNumber) || parsedPageNumber < 1) parsedPageNumber = 1;
-      if (isNaN(parsedPageSize) || parsedPageSize < 1 || parsedPageSize > 100) parsedPageSize = 10;
-
-      if (fromDate && !/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
-        return res.status(400).json({ success: false, message: 'Invalid fromDate format (use YYYY-MM-DD)', data: null, pagination: null });
-      }
-      if (toDate && !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
-        return res.status(400).json({ success: false, message: 'Invalid toDate format (use YYYY-MM-DD)', data: null, pagination: null });
-      }
-
-      const loads = await LoadModel.getAllLoads({
-        pageNumber: parsedPageNumber,
-        pageSize: parsedPageSize,
-        fromDate: fromDate || null,
-        toDate: toDate || null
+      const result = await LoadModel.createLoad(loadData);
+      console.log('Create Load result:', result);
+      return res.status(result.success ? 201 : 400).json(result);
+    } catch (error) {
+      console.error('Create Load error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        loadId: null,
+        newLoadId: null,
       });
-
-      return res.status(200).json({
-        success: true,
-        message: 'Loads retrieved successfully',
-        data: loads.data || [],
-        pagination: {
-          totalRecords: loads.totalRecords,
-          currentPage: loads.currentPage,
-          pageSize: loads.pageSize,
-          totalPages: loads.totalPages
-        }
-      });
-    } catch (err) {
-      console.error('getAllLoads error:', err);
-      return res.status(500).json({ success: false, message: `Server error: ${err.message}`, data: null, pagination: null });
     }
   }
 
-  // Create a new Load
-  static async createLoad(req, res) {
+  static async updateLoad(req, res) {
     try {
-      const {
-        loadCode,
-        driverId,
-        vehicleId,
-        companyId,
-        originWarehouseId,
-        destinationAddressId,
-        destinationWarehouseId,
-        availableToLoadDateTime,
-        loadStartDate,
-        loadStatusId,
-        loadTypeId,
-        sortOrderId,
-        weight,
-        volume,
-        weightUomId,
-        volumeUomId,
-        repackagedPalletOrTobaccoId,
-        createdById
-      } = req.body;
-
-      console.log('createLoad request body:', JSON.stringify(req.body, null, 2));
-
-      // Validate required fields
-      const requiredFields = [
-        'loadCode',
-        'driverId',
-        'vehicleId',
-        'companyId',
-        'originWarehouseId',
-        'destinationWarehouseId',
-        'loadStatusId',
-        'loadTypeId',
-        'weight',
-        'volume',
-        'weightUomId',
-        'volumeUomId',
-        'createdById'
-      ];
-      const missingFields = requiredFields.filter(field => req.body[field] === undefined || req.body[field] === null);
-      if (missingFields.length > 0) {
+      const loadId = parseInt(req.params.id);
+      if (isNaN(loadId)) {
         return res.status(400).json({
           success: false,
-          message: `Missing required fields: ${missingFields.join(', ')}`,
+          message: 'Invalid or missing LoadID',
           data: null,
-          loadId: null
+          loadId: null,
+          newLoadId: null,
         });
       }
 
-      // Validate numeric fields
-      const numericFields = ['driverId', 'vehicleId', 'companyId', 'originWarehouseId', 'destinationAddressId', 'destinationWarehouseId', 'loadStatusId', 'loadTypeId', 'sortOrderId', 'weight', 'volume', 'weightUomId', 'volumeUomId', 'repackagedPalletOrTobaccoId', 'createdById'];
-      numericFields.forEach(field => {
-        if (req.body[field] !== undefined && (typeof req.body[field] !== 'number' || isNaN(req.body[field]))) {
-          throw new Error(`Invalid value for ${field}: must be a number`);
-        }
-      });
+      const loadData = {
+        LoadID: loadId,
+        LoadCode: req.body.LoadCode || null,
+        DriverID: req.body.DriverID ? parseInt(req.body.DriverID) : null,
+        VehicleID: req.body.VehicleID ? parseInt(req.body.VehicleID) : null,
+        CompanyID: req.body.CompanyID ? parseInt(req.body.CompanyID) : null,
+        OriginWarehouseID: req.body.OriginWarehouseID ? parseInt(req.body.OriginWarehouseID) : null,
+        DestinationAddressID: req.body.DestinationAddressID ? parseInt(req.body.DestinationAddressID) : null,
+        DestinationWarehouseID: req.body.DestinationWarehouseID ? parseInt(req.body.DestinationWarehouseID) : null,
+        AvailableToLoadDateTime: req.body.AvailableToLoadDateTime ? new Date(req.body.AvailableToLoadDateTime) : null,
+        LoadStartDate: req.body.LoadStartDate ? new Date(req.body.LoadStartDate) : null,
+        LoadStatusID: req.body.LoadStatusID ? parseInt(req.body.LoadStatusID) : null,
+        LoadTypeID: req.body.LoadTypeID ? parseInt(req.body.LoadTypeID) : null,
+        SortOrderID: req.body.SortOrderID ? parseInt(req.body.SortOrderID) : null,
+        Weight: req.body.Weight ? parseFloat(req.body.Weight) : null,
+        Volume: req.body.Volume ? parseFloat(req.body.Volume) : null,
+        WeightUOMID: req.body.WeightUOMID ? parseInt(req.body.WeightUOMID) : null,
+        VolumeUOMID: req.body.VolumeUOMID ? parseInt(req.body.VolumeUOMID) : null,
+        RepackagedPalletOrTobaccoID: req.body.RepackagedPalletOrTobaccoID ? parseInt(req.body.RepackagedPalletOrTobaccoID) : null,
+        CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
+      };
 
-      // Validate date fields
-      const dateFields = ['availableToLoadDateTime', 'loadStartDate'];
-      dateFields.forEach(field => {
-        if (req.body[field] && isNaN(new Date(req.body[field]).getTime())) {
-          throw new Error(`Invalid value for ${field}: must be a valid date`);
-        }
-      });
-
-      const result = await LoadModel.createLoad({
-        loadCode,
-        driverId,
-        vehicleId,
-        companyId,
-        originWarehouseId,
-        destinationAddressId,
-        destinationWarehouseId,
-        availableToLoadDateTime,
-        loadStartDate,
-        loadStatusId,
-        loadTypeId,
-        sortOrderId,
-        weight,
-        volume,
-        weightUomId,
-        volumeUomId,
-        repackagedPalletOrTobaccoId,
-        createdById
-      });
-
-      return res.status(201).json({
-        success: true,
-        message: result.message,
-        data: null,
-        loadId: result.loadId
-      });
-    } catch (err) {
-      console.error('createLoad error:', err);
-      return res.status(400).json({
+      const result = await LoadModel.updateLoad(loadData);
+      return res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+      console.error('Update Load error:', error);
+      return res.status(500).json({
         success: false,
-        message: `Failed to create load: ${err.message}`,
+        message: `Server error: ${error.message}`,
         data: null,
-        loadId: null
+        loadId: null,
+        newLoadId: null,
       });
     }
   }
 
-  // Get a single Load by ID
-  static async getLoadById(req, res) {
-    try {
-      const { id } = req.params;
-      const parsedId = parseInt(id, 10);
-
-      if (isNaN(parsedId)) {
-        return res.status(400).json({ success: false, message: 'Valid LoadID is required', data: null, loadId: null });
-      }
-
-      const load = await LoadModel.getLoadById(parsedId);
-
-      if (!load) {
-        return res.status(404).json({ success: false, message: 'Load not found', data: null, loadId: parsedId });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: 'Load retrieved successfully',
-        data: load,
-        loadId: parsedId
-      });
-    } catch (err) {
-      console.error('getLoadById error:', err);
-      return res.status(400).json({
-        success: false,
-        message: `Failed to retrieve load: ${err.message}`,
-        data: null,
-        loadId: parseInt(req.params.id, 10) || null
-      });
-    }
-  }
-
-  // Update a Load
-  static async updateLoad(req, res) {
-    try {
-      const { id } = req.params;
-      const {
-        loadCode,
-        driverId,
-        vehicleId,
-        companyId,
-        originWarehouseId,
-        destinationAddressId,
-        destinationWarehouseId,
-        availableToLoadDateTime,
-        loadStartDate,
-        loadStatusId,
-        loadTypeId,
-        sortOrderId,
-        weight,
-        volume,
-        weightUomId,
-        volumeUomId,
-        repackagedPalletOrTobaccoId,
-        createdById
-      } = req.body;
-
-      console.log('updateLoad request body:', JSON.stringify(req.body, null, 2));
-
-      const parsedId = parseInt(id, 10);
-      if (isNaN(parsedId)) {
-        return res.status(400).json({ success: false, message: 'Valid LoadID is required', data: null, loadId: null });
-      }
-
-      if (!createdById) {
-        return res.status(400).json({ success: false, message: 'CreatedByID is required', data: null, loadId: parsedId });
-      }
-
-      // Validate numeric fields if provided
-      const numericFields = ['driverId', 'vehicleId', 'companyId', 'originWarehouseId', 'destinationAddressId', 'destinationWarehouseId', 'loadStatusId', 'loadTypeId', 'sortOrderId', 'weight', 'volume', 'weightUomId', 'volumeUomId', 'repackagedPalletOrTobaccoId', 'createdById'];
-      numericFields.forEach(field => {
-        if (req.body[field] !== undefined && (typeof req.body[field] !== 'number' || isNaN(req.body[field]))) {
-          throw new Error(`Invalid value for ${field}: must be a number`);
-        }
-      });
-
-      // Validate date fields if provided
-      const dateFields = ['availableToLoadDateTime', 'loadStartDate'];
-      dateFields.forEach(field => {
-        if (req.body[field] && isNaN(new Date(req.body[field]).getTime())) {
-          throw new Error(`Invalid value for ${field}: must be a valid date`);
-        }
-      });
-
-      const result = await LoadModel.updateLoad(parsedId, {
-        loadCode,
-        driverId,
-        vehicleId,
-        companyId,
-        originWarehouseId,
-        destinationAddressId,
-        destinationWarehouseId,
-        availableToLoadDateTime,
-        loadStartDate,
-        loadStatusId,
-        loadTypeId,
-        sortOrderId,
-        weight,
-        volume,
-        weightUomId,
-        volumeUomId,
-        repackagedPalletOrTobaccoId,
-        createdById
-      });
-
-      return res.status(200).json({
-        success: true,
-        message: result.message,
-        data: null,
-        loadId: parsedId
-      });
-    } catch (err) {
-      console.error('updateLoad error:', err);
-      return res.status(400).json({
-        success: false,
-        message: `Failed to update load: ${err.message}`,
-        data: null,
-        loadId: parseInt(req.params.id, 10) || null
-      });
-    }
-  }
-
-  // Delete a Load
   static async deleteLoad(req, res) {
     try {
-      const { id } = req.params;
-      const { deletedById } = req.body;
-      const parsedId = parseInt(id, 10);
-
-      if (isNaN(parsedId)) {
-        return res.status(400).json({ success: false, message: 'Valid LoadID is required', data: null, loadId: null });
+      const loadId = parseInt(req.params.id);
+      if (isNaN(loadId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing LoadID',
+          data: null,
+          loadId: null,
+          newLoadId: null,
+        });
       }
 
-      if (!deletedById) {
-        return res.status(400).json({ success: false, message: 'DeletedByID is required', data: null, loadId: parsedId });
-      }
+      const loadData = {
+        LoadID: loadId,
+        DeletedByID: parseInt(req.body.DeletedByID) || req.user.personId,
+      };
 
-      const result = await LoadModel.deleteLoad(parsedId, deletedById);
-
-      return res.status(200).json({
-        success: true,
-        message: result.message,
-        data: null,
-        loadId: parsedId
-      });
-    } catch (err) {
-      console.error('deleteLoad error:', err);
-      return res.status(400).json({
+      const result = await LoadModel.deleteLoad(loadData);
+      return res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+      console.error('Delete Load error:', error);
+      return res.status(500).json({
         success: false,
-        message: `Failed to delete load: ${err.message}`,
+        message: `Server error: ${error.message}`,
         data: null,
-        loadId: parseInt(req.params.id, 10) || null
+        loadId: null,
+        newLoadId: null,
+      });
+    }
+  }
+
+  static async hardDeleteLoad(req, res) {
+    try {
+      const loadId = parseInt(req.params.id);
+      if (isNaN(loadId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing LoadID',
+          data: null,
+          loadId: null,
+          newLoadId: null,
+        });
+      }
+
+      const loadData = {
+        LoadID: loadId,
+        DeletedByID: parseInt(req.body.DeletedByID) || req.user.personId,
+      };
+
+      const result = await LoadModel.hardDeleteLoad(loadData);
+      return res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+      console.error('Hard Delete Load error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        loadId: null,
+        newLoadId: null,
+      });
+    }
+  }
+
+  static async getLoad(req, res) {
+    try {
+      const loadId = parseInt(req.params.id);
+      if (isNaN(loadId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing LoadID',
+          data: null,
+          loadId: null,
+          newLoadId: null,
+        });
+      }
+
+      const loadData = {
+        LoadID: loadId,
+      };
+
+      const result = await LoadModel.getLoad(loadData);
+      return res.status(result.success ? 200 : 404).json(result);
+    } catch (error) {
+      console.error('Get Load error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        loadId: null,
+        newLoadId: null,
+      });
+    }
+  }
+
+  static async getAllLoads(req, res) {
+    try {
+      const paginationData = {
+        PageNumber: req.query.pageNumber ? parseInt(req.query.pageNumber) : 1,
+        PageSize: req.query.pageSize ? parseInt(req.query.pageSize) : 10,
+        FromDate: req.query.fromDate || null,
+        ToDate: req.query.toDate || null,
+      };
+
+      if (paginationData.PageNumber < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageNumber must be greater than 0',
+          data: null,
+          totalRecords: 0,
+          loadId: null,
+          newLoadId: null,
+        });
+      }
+      if (paginationData.PageSize < 1 || paginationData.PageSize > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageSize must be between 1 and 100',
+          data: null,
+          totalRecords: 0,
+          loadId: null,
+          newLoadId: null,
+        });
+      }
+
+      const result = await LoadModel.getAllLoads(paginationData);
+      return res.status(result.success ? 200 : 400).json({
+        ...result,
+        pagination: {
+          pageNumber: paginationData.PageNumber,
+          pageSize: paginationData.PageSize,
+          totalRecords: result.totalRecords || 0,
+          totalPages: Math.ceil(result.totalRecords / paginationData.PageSize),
+        },
+      });
+    } catch (error) {
+      console.error('Get All Loads error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        totalRecords: 0,
+        loadId: null,
+        newLoadId: null,
       });
     }
   }

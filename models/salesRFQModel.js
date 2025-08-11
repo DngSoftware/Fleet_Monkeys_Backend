@@ -19,9 +19,9 @@ class SalesRFQModel {
         salesRFQData.RequiredByDate ? new Date(salesRFQData.RequiredByDate) : null,
         salesRFQData.DateReceived ? new Date(salesRFQData.DateReceived) : null,
         salesRFQData.ServiceTypeID ? parseInt(salesRFQData.ServiceTypeID) : null,
-        salesRFQData.OriginWarehouseAddressID ? parseInt(salesRFQData.OriginWarehouseAddressID) : null,
+        salesRFQData.OriginWarehouseID ? parseInt(salesRFQData.OriginWarehouseID) : null,
         salesRFQData.CollectionAddressID ? parseInt(salesRFQData.CollectionAddressID) : null,
-        salesRFQData.DestinationWarehouseAddressID ? parseInt(salesRFQData.DestinationWarehouseAddressID) : null,
+        salesRFQData.DestinationWarehouseID ? parseInt(salesRFQData.DestinationWarehouseID) : null,
         salesRFQData.Status || null,
         salesRFQData.DestinationAddressID ? parseInt(salesRFQData.DestinationAddressID) : null,
         salesRFQData.BillingAddressID ? parseInt(salesRFQData.BillingAddressID) : null,
@@ -33,6 +33,8 @@ class SalesRFQModel {
         salesRFQData.FormCompletedYN != null ? salesRFQData.FormCompletedYN : 0,
         salesRFQData.CreatedByID ? parseInt(salesRFQData.CreatedByID) : null,
       ];
+
+      console.log(`Executing SP_ManageSalesRFQ with action: ${action}, params:`, queryParams); // Log parameters
 
       const [result] = await pool.query(
         'CALL SP_ManageSalesRFQ(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_NewSalesRFQID, @p_Result, @p_Message)',
@@ -60,7 +62,6 @@ class SalesRFQModel {
     try {
       const pool = await poolPromise;
 
-      // Validate pagination parameters
       const pageNumber = parseInt(paginationData.PageNumber) || 1;
       const pageSize = parseInt(paginationData.PageSize) || 10;
       if (pageNumber < 1) throw new Error('PageNumber must be greater than 0');
@@ -69,22 +70,28 @@ class SalesRFQModel {
       const queryParams = [
         pageNumber,
         pageSize,
-        paginationData.FromDate ? new Date(paginationData.FromDate) : null,
-        paginationData.ToDate ? new Date(paginationData.ToDate) : null,
+        paginationData.FromDate ? new Date(paginationData.FromDate).toISOString().split('T')[0] : null,
+        paginationData.ToDate ? new Date(paginationData.ToDate).toISOString().split('T')[0] : null,
       ];
 
+      console.log('Executing SP_GetAllSalesRFQs with params:', queryParams); // Log parameters
+
       const [result] = await pool.query(
-        'CALL SP_GetAllSalesRFQs(?, ?, ?, ?, @totalRecords)',
+        'CALL SP_GetAllSalesRFQs(?, ?, ?, ?, @p_TotalRecords)',
         queryParams
       );
 
-      const [[{ totalRecords }]] = await pool.query('SELECT @totalRecords AS totalRecords');
+      const [[{ totalRecords }]] = await pool.query('SELECT @p_TotalRecords AS totalRecords');
+      console.log('Raw totalRecords from SP_GetAllSalesRFQs:', totalRecords); // Log raw output
+
+      // Ensure totalRecords is non-negative
+      const validTotalRecords = totalRecords != null && totalRecords >= 0 ? totalRecords : 0;
 
       return {
         success: true,
-        message: 'SalesRFQ records retrieved successfully.',
+        message: validTotalRecords === 0 ? 'No SalesRFQ records found.' : 'SalesRFQ records retrieved successfully.',
         data: result[0] || [],
-        totalRecords: totalRecords || 0,
+        totalRecords: validTotalRecords,
         salesRFQId: null,
         newSalesRFQId: null,
       };
@@ -134,12 +141,12 @@ class SalesRFQModel {
         );
         if (serviceTypeCheck.length === 0) errors.push(`ServiceTypeID ${salesRFQData.ServiceTypeID} does not exist`);
       }
-      if (salesRFQData.OriginWarehouseAddressID) {
+      if (salesRFQData.OriginWarehouseID) {
         const [originAddressCheck] = await pool.query(
           'SELECT 1 FROM dbo_tbladdresses WHERE AddressID = ?',
-          [parseInt(salesRFQData.OriginWarehouseAddressID)]
+          [parseInt(salesRFQData.OriginWarehouseID)]
         );
-        if (originAddressCheck.length === 0) errors.push(`OriginWarehouseAddressID ${salesRFQData.OriginWarehouseAddressID} does not exist`);
+        if (originAddressCheck.length === 0) errors.push(`OriginWarehouseID ${salesRFQData.OriginWarehouseID} does not exist`);
       }
       if (salesRFQData.CollectionAddressID) {
         const [collectionAddressCheck] = await pool.query(
@@ -155,12 +162,12 @@ class SalesRFQModel {
         );
         if (destinationAddressCheck.length === 0) errors.push(`DestinationAddressID ${salesRFQData.DestinationAddressID} does not exist`);
       }
-      if (salesRFQData.DestinationWarehouseAddressID) {
+      if (salesRFQData.DestinationWarehouseID) {
         const [destWarehouseAddressCheck] = await pool.query(
           'SELECT 1 FROM dbo_tbladdresses WHERE AddressID = ?',
-          [parseInt(salesRFQData.DestinationWarehouseAddressID)]
+          [parseInt(salesRFQData.DestinationWarehouseID)]
         );
-        if (destWarehouseAddressCheck.length === 0) errors.push(`DestinationWarehouseAddressID ${salesRFQData.DestinationWarehouseAddressID} does not exist`);
+        if (destWarehouseAddressCheck.length === 0) errors.push(`DestinationWarehouseID ${salesRFQData.DestinationWarehouseID} does not exist`);
       }
       if (salesRFQData.BillingAddressID) {
         const [billingAddressCheck] = await pool.query(
@@ -178,10 +185,10 @@ class SalesRFQModel {
       }
       if (salesRFQData.CurrencyID) {
         const [currencyCheck] = await pool.query(
-          'SELECT 1 FROM dbo_tblcurrency WHERE CurrencyID = ? AND IsDeleted = 0',
+          'SELECT 1 FROM dbo_tblcurrency WHERE CurrencyID = ?',
           [parseInt(salesRFQData.CurrencyID)]
         );
-        if (currencyCheck.length === 0) errors.push(`CurrencyID ${salesRFQData.CurrencyID} does not exist or is deleted`);
+        if (currencyCheck.length === 0) errors.push(`CurrencyID ${salesRFQData.CurrencyID} does not exist`);
       }
       if (salesRFQData.CreatedByID) {
         const [createdByCheck] = await pool.query(
@@ -214,7 +221,7 @@ class SalesRFQModel {
         WHERE fra.UserID = ? 
           AND f.FormName = ? 
           AND fra.ActiveYN = 1 
-          AND f.IsDeleted = 0;
+          AND f.IsDeleted = 0
       `;
       const [result] = await pool.query(query, [parseInt(approverID), formName]);
       return result.length > 0;
@@ -229,7 +236,7 @@ class SalesRFQModel {
       const query = `
         SELECT Status 
         FROM dbo_tblsalesrfq 
-        WHERE SalesRFQID = ? AND IsDeleted = 0;
+        WHERE SalesRFQID = ?
       `;
       const [result] = await pool.query(query, [parseInt(salesRFQID)]);
       if (result.length === 0) {
@@ -248,7 +255,7 @@ class SalesRFQModel {
           SalesRFQID, ApproverID, ApprovedYN, ApproverDateTime, CreatedByID, CreatedDateTime, IsDeleted
         ) VALUES (
           ?, ?, ?, NOW(), ?, NOW(), 0
-        );
+        )
       `;
       const [result] = await connection.query(query, [
         parseInt(approvalData.SalesRFQID),
@@ -289,7 +296,7 @@ class SalesRFQModel {
 
       const { exists, status } = await this.#checkSalesRFQStatus(salesRFQID);
       if (!exists) {
-        throw new Error('SalesRFQ does not exist or has been deleted');
+        throw new Error('SalesRFQ does not exist');
       }
       if (status !== 'Pending') {
         throw new Error(`SalesRFQ status must be Pending to approve, current status: ${status}`);

@@ -14,4 +14,7 @@ router.put('/:id', SalesQuotationParcelController.updateSalesQuotationParcel);
 // Delete a Sales Quotation Parcel
 router.delete('/:id', SalesQuotationParcelController.deleteSalesQuotationParcel);
 
+// New route to update exchange rates for all parcels in a sales quotation
+router.post('/update-exchange-rates/:salesQuotationId', SalesQuotationParcelController.updateExchangeRates);
+
 module.exports = router;

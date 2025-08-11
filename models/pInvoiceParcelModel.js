@@ -1,4 +1,6 @@
 const poolPromise = require('../config/db.config');
+const path = require('path');
+const fs = require('fs');
 
 class PInvoiceParcelModel {
   // Get Purchase Invoice Parcels by PInvoiceParcelID or PInvoiceID
@@ -64,6 +66,14 @@ class PInvoiceParcelModel {
         throw new Error('Invalid userId: must be an integer');
       }
 
+      // If fileContent is a path, ensure it exists
+      if (data.fileContent) {
+        const filePath = path.join(__dirname, '../', data.fileContent);
+        if (!fs.existsSync(filePath)) {
+          throw new Error('File not found at specified path');
+        }
+      }
+
       const queryParams = [
         'UPDATE',
         id,
@@ -109,6 +119,19 @@ class PInvoiceParcelModel {
       }
       if (!userId || !Number.isInteger(userId)) {
         throw new Error('Invalid userId: must be an integer');
+      }
+
+      // Check for existing file and delete it
+      const [existing] = await pool.query(
+        'SELECT FileContent FROM PInvoiceParcel WHERE PInvoiceParcelID = ?',
+        [id]
+      );
+      if (existing[0]?.FileContent) {
+        const filePath = path.join(__dirname, '../', existing[0].FileContent);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log(`Deleted file: ${filePath}`);
+        }
       }
 
       const queryParams = [

@@ -47,12 +47,19 @@ class SalesOrderController {
           pagination: null
         });
       }
+      // Validate sortColumn
+      const validSortColumns = ['SalesOrderID', 'Series', 'PostingDate', 'CreatedDateTime', 'CustomerName', 'Total'];
+      const validatedSortColumn = validSortColumns.includes(sortColumn) ? sortColumn : 'CreatedDateTime';
+
+      // Validate sortDirection
+      const validSortDirections = ['ASC', 'DESC'];
+      const validatedSortDirection = validSortDirections.includes(sortDirection?.toUpperCase()) ? sortDirection : 'DESC';
 
       const result = await SalesOrderModel.getAllSalesOrders({
         pageNumber: parseInt(pageNumber) || 1,
         pageSize: parseInt(pageSize) || 10,
-        sortColumn: sortColumn || 'CreatedDateTime',
-        sortDirection: sortDirection || 'DESC',
+        sortColumn: validatedSortColumn,
+        sortDirection: validatedSortDirection,
         fromDate: fromDate || null,
         toDate: toDate || null
       });
@@ -135,8 +142,9 @@ class SalesOrderController {
         CompanyID: req.body.companyID ? parseInt(req.body.companyID) : null,
         CustomerID: req.body.customerID ? parseInt(req.body.customerID) : null,
         SupplierID: req.body.supplierID ? parseInt(req.body.supplierID) : null,
-        OriginAddressID: req.body.originAddressID ? parseInt(req.body.originAddressID) : null,
+        OriginWarehouseID: req.body.originWarehouseID ? parseInt(req.body.originWarehouseID) : null,
         DestinationAddressID: req.body.destinationAddressID ? parseInt(req.body.destinationAddressID) : null,
+        DestinationWarehouseID: req.body.destinationWarehouseID ? parseInt(req.body.destinationWarehouseID) : null,
         BillingAddressID: req.body.billingAddressID ? parseInt(req.body.billingAddressID) : null,
         CollectionAddressID: req.body.collectionAddressID ? parseInt(req.body.collectionAddressID) : null,
         ShippingPriorityID: req.body.shippingPriorityID ? parseInt(req.body.shippingPriorityID) : null,

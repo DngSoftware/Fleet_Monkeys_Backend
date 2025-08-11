@@ -5,6 +5,7 @@ class SalesRFQParcelController {
   static async getSalesRFQParcels(req, res) {
     try {
       const { salesRFQParcelId, salesRFQId } = req.query;
+      console.log('Received query params in getSalesRFQParcels:', { salesRFQParcelId, salesRFQId }); // Added logging
       const result = await SalesRFQParcelModel.getSalesRFQParcels({
         salesRFQParcelId: parseInt(salesRFQParcelId) || null,
         salesRFQId: parseInt(salesRFQId) || null
@@ -32,6 +33,7 @@ class SalesRFQParcelController {
   static async getSalesRFQParcelById(req, res) {
     try {
       const { id } = req.params;
+      console.log('Received params in getSalesRFQParcelById:', { id }); // Added logging
       const salesRFQParcel = await SalesRFQParcelModel.getSalesRFQParcelById(parseInt(id));
       if (!salesRFQParcel) {
         return res.status(404).json({
@@ -65,6 +67,7 @@ class SalesRFQParcelController {
   static async createSalesRFQParcel(req, res) {
     try {
       const data = req.body;
+      console.log('Received body in createSalesRFQParcel:', data); // Added logging
       // Validate required fields
       if (!data.SalesRFQID || !data.ItemID || !data.CreatedByID) {
         return res.status(400).json({
@@ -101,6 +104,7 @@ class SalesRFQParcelController {
     try {
       const { id } = req.params;
       const data = req.body;
+      console.log('Received params and body in updateSalesRFQParcel:', { id, data }); // Added logging
       // Validate required fields
       if (!data.CreatedByID) {
         return res.status(400).json({
@@ -137,6 +141,7 @@ class SalesRFQParcelController {
     try {
       const { id } = req.params;
       const { DeletedByID } = req.body;
+      console.log('Received params and body in deleteSalesRFQParcel:', { id, DeletedByID }); // Added logging
       if (!DeletedByID) {
         return res.status(400).json({
           success: false,

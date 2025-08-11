@@ -1,35 +1,49 @@
 const axios = require('axios');
-const ExchangeRateModel = require('../models/exchangeRateModel');
 
-// Define API key as a constant
-const EXCHANGE_RATE_API_KEY = '77b2916030994a174c4e1a60'; // Replace with your actual API key
+const API_KEY = '0ac52693487ca7c3879a1350'; // Your API key from exchangerate-api.com
 
 class ExchangeRateService {
-  async fetchAndUpdateRates() {
+  static async fetchCurrencies() {
     try {
-      if (!EXCHANGE_RATE_API_KEY) {
-        throw new Error('EXCHANGE_RATE_API_KEY is not defined');
+      const response = await axios.get(`https://v6.exchangerate-api.com/v6/${API_KEY}/codes`);
+
+      if (response.data.result !== 'success') {
+        throw new Error(response.data.error || 'API response indicates failure');
       }
 
-      const response = await axios.get(`https://v6.exchangerate-api.com/v6/${EXCHANGE_RATE_API_KEY}/latest/USD`);
-      console.log('API Response:', response.data);
-
-      if (!response.data || !response.data.conversion_rates) {
-        throw new Error('Invalid API response: rates data is missing');
-      }
-
-      const rates = response.data.conversion_rates;
-      await ExchangeRateModel.updateRates(rates, 'USD');
-      console.log('Exchange rates updated successfully');
+      return response.data.supported_codes.map(([code]) => ({
+        CurrencyName: code,
+      }));
     } catch (error) {
-      console.error('fetchAndUpdateRates error:', {
-        message: error.message,
-        response: error.response ? error.response.data : null,
-        stack: error.stack
-      });
-      throw new Error(`Failed to fetch or update exchange rates: ${error.message}`);
+      console.error('Error fetching currencies:', error.message, error.response?.data || error);
+      throw new Error('Failed to fetch currencies from API');
+    }
+  }
+
+  static async fetchExchangeRate(fromCurrency, toCurrency) {
+    try {
+      const response = await axios.get(`https://v6.exchangerate-api.com/v6/${API_KEY}/latest/${fromCurrency}`);
+
+      if (response.data.result !== 'success') {
+        throw new Error(response.data.error || 'API response indicates failure');
+      }
+
+      const rate = response.data.conversion_rates[toCurrency];
+      if (!rate) {
+        throw new Error(`No exchange rate found for ${fromCurrency} to ${toCurrency}`);
+      }
+
+      const updateDate = new Date(response.data.time_last_update_utc).toISOString().slice(0, 10);
+
+      return {
+        rate,
+        date: updateDate,
+      };
+    } catch (error) {
+      console.error(`Error fetching exchange rate for ${fromCurrency} to ${toCurrency}:`, error.message, error.response?.data || error);
+      throw new Error(`Failed to fetch exchange rate: ${error.message}`);
     }
   }
 }
 
-module.exports = new ExchangeRateService();
+module.exports = ExchangeRateService;

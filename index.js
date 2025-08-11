@@ -66,8 +66,7 @@ const inquiryTrackingRoutes = require('./routes/inquiryTrackingRoutes');
 const commentsRoutes = require('./routes/commentsRoutes');
 const tableCountsRoutes = require('./routes/tableCountsRoutes');
 const dashboardCountsRoutes = require('./routes/DashboardCountsRoutes');
-// const exchangeRateRoutes = require('./routes/exchangeRateRoutes');
-// const ExchangeRateService = require('./services/exchangeRateService');
+const exchangeRateRoutes = require('./routes/exchangeRateRoutes');
 const customerAddressRoutes = require('./routes/customerAddressRoutes');
 const supplierAddressRoutes = require('./routes/supplierAddressRoutes');
 const ShippingParcelRoutes = require('./routes/ShippingParcelRoutes');
@@ -75,9 +74,11 @@ const repackagedPalletOrTobaccoRoutes = require('./routes/repackagedPalletOrToba
 const pInvoiceAdjustmentRoutes = require('./routes/pInvoiceAdjustmentRoutes');
 const transactionsRoutes = require('./routes/transactionsRoutes');
 const pInvoiceParcelPalletDimensionsRoutes = require('./routes/pInvoiceParcelPalletDimensionsRoutes');
+const salesQuotationRoutesKeyur = require('./routes/salesQuotationRoutesKeyur');
+const ipAlgorithmRoutes = require('./routes/ipAlgorithmRoutes');
 const loadRoutes = require('./routes/loadRoutes');
-const trailerRoutes = require('./routes/trailerRoutes');
 const loadTrailerRoutes = require('./routes/loadTrailerRoutes');
+const trailerRoutes = require('./routes/trailerRoutes');
 
 const app = express();
 
@@ -150,6 +151,10 @@ async function startServer() {
     // Wait for database connection
     const pool = await poolPromise;
     console.log('Database pool initialized successfully');
+
+    // Initialize cron job for exchange rate caching
+    const cronJob = require('./cronJob'); // Adjust path if cronJob.js is in a different directory
+    console.log('Cron job for exchange rate caching initialized');
 
     // // Fetch and update exchange rates (optional, can be triggered separately)
     // try {
@@ -226,7 +231,7 @@ async function startServer() {
       ['/api/comments', commentsRoutes],
       ['/api/tableCounts', tableCountsRoutes],
       ['/api/dashboardCounts', dashboardCountsRoutes],
-      // ['/api/exchange-rates', exchangeRateRoutes],
+      ['/api/exchange-rates', exchangeRateRoutes],
       ['/api/customerAddress', customerAddressRoutes],
       ['/api/supplierAddress', supplierAddressRoutes],
       ['/api/ShippingParcel', ShippingParcelRoutes],
@@ -234,9 +239,11 @@ async function startServer() {
       ['/api/pInvoiceAdjustment', pInvoiceAdjustmentRoutes],
       ['/api/transactions', transactionsRoutes],
       ['/api/pInvoiceParcelPalletDimensions', pInvoiceParcelPalletDimensionsRoutes],
-      ['/api/load',loadRoutes],
-      ['/api/trailer',trailerRoutes],
-      ['/api/loadTrailer',loadTrailerRoutes]
+      ['/api/salesQuotationKeyur', salesQuotationRoutesKeyur],
+      ['/api/ipAlgorithm', ipAlgorithmRoutes],
+      ['/api/load', loadRoutes],
+      ['/api/load-Trailer', loadTrailerRoutes],
+      ['/api/Trailer', trailerRoutes]
     ];
 
     routes.forEach(([path, route]) => {
@@ -321,8 +328,3 @@ module.exports = {
     }
   }
 };
-
-
-
-
-
