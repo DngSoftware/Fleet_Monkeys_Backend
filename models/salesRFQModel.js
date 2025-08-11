@@ -1,5 +1,5 @@
 const poolPromise = require('../config/db.config');
-
+// 
 class SalesRFQModel {
   static async #executeManageStoredProcedure(action, salesRFQData) {
     try {
