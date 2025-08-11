@@ -67,7 +67,6 @@ const commentsRoutes = require('./routes/commentsRoutes');
 const tableCountsRoutes = require('./routes/tableCountsRoutes');
 const dashboardCountsRoutes = require('./routes/DashboardCountsRoutes');
 const exchangeRateRoutes = require('./routes/exchangeRateRoutes');
-// const ExchangeRateService = require('./services/exchangeRateService');
 const customerAddressRoutes = require('./routes/customerAddressRoutes');
 const supplierAddressRoutes = require('./routes/supplierAddressRoutes');
 const ShippingParcelRoutes = require('./routes/ShippingParcelRoutes');
@@ -76,6 +75,7 @@ const pInvoiceAdjustmentRoutes = require('./routes/pInvoiceAdjustmentRoutes');
 const transactionsRoutes = require('./routes/transactionsRoutes');
 const pInvoiceParcelPalletDimensionsRoutes = require('./routes/pInvoiceParcelPalletDimensionsRoutes');
 const salesQuotationRoutesKeyur = require('./routes/salesQuotationRoutesKeyur');
+const ipAlgorithmRoutes = require('./routes/ipAlgorithmRoutes');
 
 const app = express();
 
@@ -236,7 +236,8 @@ async function startServer() {
       ['/api/pInvoiceAdjustment', pInvoiceAdjustmentRoutes],
       ['/api/transactions', transactionsRoutes],
       ['/api/pInvoiceParcelPalletDimensions', pInvoiceParcelPalletDimensionsRoutes],
-      ['/api/salesQuotationKeyur', salesQuotationRoutesKeyur]
+      ['/api/salesQuotationKeyur', salesQuotationRoutesKeyur],
+      ['/api/ipAlgorithm', ipAlgorithmRoutes]
     ];
 
     routes.forEach(([path, route]) => {
