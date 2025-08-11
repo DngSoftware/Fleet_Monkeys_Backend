@@ -76,6 +76,9 @@ const transactionsRoutes = require('./routes/transactionsRoutes');
 const pInvoiceParcelPalletDimensionsRoutes = require('./routes/pInvoiceParcelPalletDimensionsRoutes');
 const salesQuotationRoutesKeyur = require('./routes/salesQuotationRoutesKeyur');
 const ipAlgorithmRoutes = require('./routes/ipAlgorithmRoutes');
+const loadRoutes = require('./routes/loadRoutes');
+const loadTrailerRoutes = require('./routes/loadTrailerRoutes');
+const trailerRoutes = require('./routes/trailerRoutes');
 
 const app = express();
 
@@ -237,7 +240,10 @@ async function startServer() {
       ['/api/transactions', transactionsRoutes],
       ['/api/pInvoiceParcelPalletDimensions', pInvoiceParcelPalletDimensionsRoutes],
       ['/api/salesQuotationKeyur', salesQuotationRoutesKeyur],
-      ['/api/ipAlgorithm', ipAlgorithmRoutes]
+      ['/api/ipAlgorithm', ipAlgorithmRoutes],
+      ['/api/load', loadRoutes],
+      ['/api/load-Trailer', loadTrailerRoutes],
+      ['/api/Trailer', trailerRoutes]
     ];
 
     routes.forEach(([path, route]) => {

@@ -1,254 +1,234 @@
 const poolPromise = require('../config/db.config');
 
 class LoadTrailerModel {
-  // Get all LoadTrailer assignments
-  static async getAllLoadTrailers() {
+  static async #executeManageStoredProcedure(action, loadTrailerData) {
     try {
       const pool = await poolPromise;
 
       const queryParams = [
-        'SELECT',
-        null, // p_LoadTrailerID
-        null, // p_LoadID
-        null, // p_TrailerID
-        null, // p_TrailerRegistrationNumber
-        null, // p_TrailerLength
-        null, // p_TrailerWidth
-        null, // p_TrailerHeight
-        null, // p_MaxAllowableVolume
-        null, // p_MaxAllowableWeight
-        null, // p_CreatedByID
-        null  // p_DeletedByID
+        action,
+        loadTrailerData.LoadTrailerID ? parseInt(loadTrailerData.LoadTrailerID) : null,
+        loadTrailerData.LoadID ? parseInt(loadTrailerData.LoadID) : null,
+        loadTrailerData.TrailerID ? parseInt(loadTrailerData.TrailerID) : null,
+        loadTrailerData.TrailerRegistrationNumber || null,
+        loadTrailerData.TrailerLength ? parseFloat(loadTrailerData.TrailerLength) : null,
+        loadTrailerData.TrailerWidth ? parseFloat(loadTrailerData.TrailerWidth) : null,
+        loadTrailerData.TrailerHeight ? parseFloat(loadTrailerData.TrailerHeight) : null,
+        loadTrailerData.MaxAllowableVolume ? parseFloat(loadTrailerData.MaxAllowableVolume) : null,
+        loadTrailerData.MaxAllowableWeight ? parseFloat(loadTrailerData.MaxAllowableWeight) : null,
+        loadTrailerData.CreatedByID ? parseInt(loadTrailerData.CreatedByID) : null,
+        loadTrailerData.DeletedByID ? parseInt(loadTrailerData.DeletedByID) : null,
+        loadTrailerData.PageNumber ? parseInt(loadTrailerData.PageNumber) : 1,
+        loadTrailerData.PageSize ? parseInt(loadTrailerData.PageSize) : 10,
       ];
 
-      console.log('getAllLoadTrailers params:', queryParams);
+      console.log(`[${new Date().toISOString()}] Executing SP_ManageLoadTrailer with ${queryParams.length} params:`, JSON.stringify(queryParams, null, 2));
 
-      const [results] = await pool.query(
-        'CALL SP_ManageLoadTrailer(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewLoadTrailerID)',
+      const [result] = await pool.query(
+        'CALL SP_ManageLoadTrailer(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewLoadTrailerID)',
         queryParams
       );
 
-      console.log('getAllLoadTrailers results:', JSON.stringify(results, null, 2));
+      const [[outParams]] = await pool.query(
+        'SELECT @p_Result AS result, @p_Message AS message, @p_NewLoadTrailerID AS newLoadTrailerID'
+      );
 
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message, @p_NewLoadTrailerID AS p_NewLoadTrailerID');
-
-      console.log('getAllLoadTrailers output:', JSON.stringify(output, null, 2));
-
-      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
-        throw new Error('Output parameters missing from SP_ManageLoadTrailer');
-      }
-
-      if (output[0].p_Result !== 1) {
-        throw new Error(output[0].p_Message || 'Failed to retrieve LoadTrailer assignments');
-      }
+      console.log(`[${new Date().toISOString()}] Stored procedure output for ${action}:`, JSON.stringify(outParams, null, 2));
 
       return {
-        data: results[0] || [],
-        message: output[0].p_Message
+        success: outParams.result === 1,
+        message: outParams.message || (outParams.result === 1 ? `${action} operation completed` : 'Operation failed'),
+        data: action === 'SELECT' ? (loadTrailerData.LoadTrailerID ? (result[0]?.[0] || null) : (result[0] || [])) : null,
+        loadTrailerId: loadTrailerData.LoadTrailerID,
+        newLoadTrailerId: outParams.newLoadTrailerID ? parseInt(outParams.newLoadTrailerID) : null,
       };
-    } catch (err) {
-      console.error('getAllLoadTrailers error:', err);
-      throw new Error(`Database error: ${err.message}`);
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] Database error in ${action} operation:`, error);
+      throw new Error(`Database error: ${error.message || 'Unknown error'}`);
     }
   }
 
-  // Get a single LoadTrailer assignment by ID
-  static async getLoadTrailerById(loadTrailerId) {
-    try {
-      const pool = await poolPromise;
+  static async #validateForeignKeys(loadTrailerData, action) {
+    const pool = await poolPromise;
+    const errors = [];
 
-      const queryParams = [
-        'SELECT',
-        loadTrailerId,
-        null, // p_LoadID
-        null, // p_TrailerID
-        null, // p_TrailerRegistrationNumber
-        null, // p_TrailerLength
-        null, // p_TrailerWidth
-        null, // p_TrailerHeight
-        null, // p_MaxAllowableVolume
-        null, // p_MaxAllowableWeight
-        null, // p_CreatedByID
-        null  // p_DeletedByID
-      ];
-
-      console.log('getLoadTrailerById params:', queryParams);
-
-      const [results] = await pool.query(
-        'CALL SP_ManageLoadTrailer(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewLoadTrailerID)',
-        queryParams
-      );
-
-      console.log('getLoadTrailerById results:', JSON.stringify(results, null, 2));
-
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message, @p_NewLoadTrailerID AS p_NewLoadTrailerID');
-
-      console.log('getLoadTrailerById output:', JSON.stringify(output, null, 2));
-
-      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
-        throw new Error('Output parameters missing from SP_ManageLoadTrailer');
+    if (action === 'INSERT' || action === 'UPDATE') {
+      if (!loadTrailerData.CreatedByID) {
+        errors.push('CreatedByID is required');
       }
-
-      if (output[0].p_Result !== 1) {
-        throw new Error(output[0].p_Message || 'LoadTrailer not found');
+      if (!loadTrailerData.TrailerID) {
+        errors.push('TrailerID is required');
       }
-
-      return {
-        data: results[0][0] || null,
-        message: output[0].p_Message
-      };
-    } catch (err) {
-      console.error('getLoadTrailerById error:', err);
-      throw new Error(`Database error: ${err.message}`);
+      if (loadTrailerData.LoadID) {
+        const [loadCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblload WHERE LoadID = ? AND IsDeleted = 0',
+          [parseInt(loadTrailerData.LoadID)]
+        );
+        if (loadCheck.length === 0) errors.push(`LoadID ${loadTrailerData.LoadID} does not exist`);
+      }
+      if (loadTrailerData.CreatedByID) {
+        const [createdByCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblperson WHERE PersonID = ? AND IsDeleted = 0',
+          [parseInt(loadTrailerData.CreatedByID)]
+        );
+        if (createdByCheck.length === 0) errors.push(`CreatedByID ${loadTrailerData.CreatedByID} does not exist`);
+      }
     }
+
+    if (action === 'DELETE') {
+      if (loadTrailerData.DeletedByID) {
+        const [deletedByCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblperson WHERE PersonID = ? AND IsDeleted = 0',
+          [parseInt(loadTrailerData.DeletedByID)]
+        );
+        if (deletedByCheck.length === 0) errors.push(`DeletedByID ${loadTrailerData.DeletedByID} does not exist`);
+      }
+    }
+
+    return errors.length > 0 ? errors.join('; ') : null;
   }
 
-  // Create a new LoadTrailer assignment
-  static async createLoadTrailer(data) {
-    try {
-      const pool = await poolPromise;
-
-      console.log('createLoadTrailer input data:', JSON.stringify(data, null, 2));
-
-      const queryParams = [
-        'INSERT',
-        data.loadTrailerId || null,
-        data.loadId,
-        data.trailerId,
-        data.trailerRegistrationNumber || null,
-        data.trailerLength || null,
-        data.trailerWidth || null,
-        data.trailerHeight || null,
-        data.maxAllowableVolume || null,
-        data.maxAllowableWeight || null,
-        data.createdById,
-        null // p_DeletedByID
-      ];
-
-      console.log('createLoadTrailer params:', queryParams);
-
-      await pool.query(
-        'CALL SP_ManageLoadTrailer(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewLoadTrailerID)',
-        queryParams
-      );
-
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message, @p_NewLoadTrailerID AS p_NewLoadTrailerID');
-
-      console.log('createLoadTrailer output:', JSON.stringify(output, null, 2));
-
-      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
-        throw new Error('Output parameters missing from SP_ManageLoadTrailer');
-      }
-
-      if (output[0].p_Result !== 1) {
-        throw new Error(output[0].p_Message || 'Failed to create LoadTrailer assignment');
-      }
-
+  static async createLoadTrailer(loadTrailerData) {
+    const requiredFields = ['CreatedByID', 'TrailerID'];
+    const missingFields = requiredFields.filter(field => !loadTrailerData[field]);
+    if (missingFields.length > 0) {
       return {
-        loadTrailerId: output[0].p_NewLoadTrailerID || null,
-        message: output[0].p_Message
+        success: false,
+        message: `${missingFields.join(', ')} are required`,
+        data: null,
+        loadTrailerId: null,
+        newLoadTrailerId: null,
       };
-    } catch (err) {
-      console.error('createLoadTrailer error:', err);
-      throw new Error(`Database error: ${err.message}`);
     }
+
+    const fkErrors = await this.#validateForeignKeys(loadTrailerData, 'INSERT');
+    if (fkErrors) {
+      return {
+        success: false,
+        message: `Validation failed: ${fkErrors}`,
+        data: null,
+        loadTrailerId: null,
+        newLoadTrailerId: null,
+      };
+    }
+
+    return await this.#executeManageStoredProcedure('INSERT', loadTrailerData);
   }
 
-  // Update a LoadTrailer assignment
-  static async updateLoadTrailer(loadTrailerId, data) {
-    try {
-      const pool = await poolPromise;
-
-      console.log('updateLoadTrailer input data:', JSON.stringify(data, null, 2));
-
-      const queryParams = [
-        'UPDATE',
-        loadTrailerId,
-        data.loadId || null,
-        data.trailerId || null,
-        data.trailerRegistrationNumber || null,
-        data.trailerLength || null,
-        data.trailerWidth || null,
-        data.trailerHeight || null,
-        data.maxAllowableVolume || null,
-        data.maxAllowableWeight || null,
-        data.createdById,
-        null // p_DeletedByID
-      ];
-
-      console.log('updateLoadTrailer params:', queryParams);
-
-      await pool.query(
-        'CALL SP_ManageLoadTrailer(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewLoadTrailerID)',
-        queryParams
-      );
-
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message, @p_NewLoadTrailerID AS p_NewLoadTrailerID');
-
-      console.log('updateLoadTrailer output:', JSON.stringify(output, null, 2));
-
-      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
-        throw new Error('Output parameters missing from SP_ManageLoadTrailer');
-      }
-
-      if (output[0].p_Result !== 1) {
-        throw new Error(output[0].p_Message || 'Failed to update LoadTrailer assignment');
-      }
-
+  static async updateLoadTrailer(loadTrailerData) {
+    if (!loadTrailerData.LoadTrailerID) {
       return {
-        message: output[0].p_Message
+        success: false,
+        message: 'LoadTrailerID is required for UPDATE',
+        data: null,
+        loadTrailerId: null,
+        newLoadTrailerId: null,
       };
-    } catch (err) {
-      console.error('updateLoadTrailer error:', err);
-      throw new Error(`Database error: ${err.message}`);
     }
+
+    const fkErrors = await this.#validateForeignKeys(loadTrailerData, 'UPDATE');
+    if (fkErrors) {
+      return {
+        success: false,
+        message: `Validation failed: ${fkErrors}`,
+        data: null,
+        loadTrailerId: loadTrailerData.LoadTrailerID,
+        newLoadTrailerId: null,
+      };
+    }
+
+    return await this.#executeManageStoredProcedure('UPDATE', loadTrailerData);
   }
 
-  // Delete a LoadTrailer assignment
-  static async deleteLoadTrailer(loadTrailerId, deletedById) {
+  static async deleteLoadTrailer(loadTrailerData) {
+    if (!loadTrailerData.LoadTrailerID) {
+      return {
+        success: false,
+        message: 'LoadTrailerID is required for DELETE',
+        data: null,
+        loadTrailerId: null,
+        newLoadTrailerId: null,
+      };
+    }
+
+    const fkErrors = await this.#validateForeignKeys(loadTrailerData, 'DELETE');
+    if (fkErrors) {
+      return {
+        success: false,
+        message: `Validation failed: ${fkErrors}`,
+        data: null,
+        loadTrailerId: loadTrailerData.LoadTrailerID,
+        newLoadTrailerId: null,
+      };
+    }
+
+    return await this.#executeManageStoredProcedure('DELETE', loadTrailerData);
+  }
+
+  static async getLoadTrailer(loadTrailerData) {
+    if (!loadTrailerData.LoadTrailerID) {
+      return {
+        success: false,
+        message: 'LoadTrailerID is required for SELECT',
+        data: null,
+        loadTrailerId: null,
+        newLoadTrailerId: null,
+      };
+    }
+
+    return await this.#executeManageStoredProcedure('SELECT', loadTrailerData);
+  }
+
+  static async getAllLoadTrailers(paginationData) {
     try {
+      const pageNumber = parseInt(paginationData.PageNumber) || 1;
+      const pageSize = parseInt(paginationData.PageSize) || 10;
+
+      if (pageNumber < 1) {
+        return {
+          success: false,
+          message: 'PageNumber must be greater than 0',
+          data: null,
+          totalRecords: 0,
+          loadTrailerId: null,
+          newLoadTrailerId: null,
+        };
+      }
+      if (pageSize < 1 || pageSize > 100) {
+        return {
+          success: false,
+          message: 'PageSize must be between 1 and 100',
+          data: null,
+          totalRecords: 0,
+          loadTrailerId: null,
+          newLoadTrailerId: null,
+        };
+      }
+
+      const result = await this.#executeManageStoredProcedure('SELECT', {
+        ...paginationData,
+        LoadTrailerID: null,
+      });
+
       const pool = await poolPromise;
-
-      const queryParams = [
-        'DELETE',
-        loadTrailerId,
-        null, // p_LoadID
-        null, // p_TrailerID
-        null, // p_TrailerRegistrationNumber
-        null, // p_TrailerLength
-        null, // p_TrailerWidth
-        null, // p_TrailerHeight
-        null, // p_MaxAllowableVolume
-        null, // p_MaxAllowableWeight
-        null, // p_CreatedByID
-        deletedById
-      ];
-
-      console.log('deleteLoadTrailer params:', queryParams);
-
-      await pool.query(
-        'CALL SP_ManageLoadTrailer(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewLoadTrailerID)',
-        queryParams
+      const [[{ totalRecords }]] = await pool.query(
+        'SELECT COUNT(*) AS totalRecords FROM dbo_tblloadtrailer'
       );
 
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message, @p_NewLoadTrailerID AS p_NewLoadTrailerID');
-
-      console.log('deleteLoadTrailer output:', JSON.stringify(output, null, 2));
-
-      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
-        throw new Error('Output parameters missing from SP_ManageLoadTrailer');
-      }
-
-      if (output[0].p_Result !== 1) {
-        throw new Error(output[0].p_Message || 'Failed to delete LoadTrailer assignment');
-      }
-
       return {
-        message: output[0].p_Message
+        ...result,
+        totalRecords: totalRecords || 0,
       };
-    } catch (err) {
-      console.error('deleteLoadTrailer error:', err);
-      throw new Error(`Database error: ${err.message}`);
+    } catch (error) {
+      console.error('Database error in getAllLoadTrailers:', error);
+      return {
+        success: false,
+        message: `Database error: ${error.message || 'Unknown error'}`,
+        data: null,
+        totalRecords: 0,
+        loadTrailerId: null,
+        newLoadTrailerId: null,
+      };
     }
   }
 }

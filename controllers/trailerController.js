@@ -1,179 +1,185 @@
 const TrailerModel = require('../models/trailerModel');
 
 class TrailerController {
-  static async getAllTrailers(req, res) {
-    try {
-      const { pageNumber, pageSize, fromDate, toDate } = req.query;
-
-      let parsedPageNumber = parseInt(pageNumber, 10);
-      let parsedPageSize = parseInt(pageSize, 10);
-      if (isNaN(parsedPageNumber) || parsedPageNumber < 1) parsedPageNumber = 1;
-      if (isNaN(parsedPageSize) || parsedPageSize < 1 || parsedPageSize > 100) parsedPageSize = 10;
-
-      const result = await TrailerModel.getAllTrailers({
-        pageNumber: parsedPageNumber,
-        pageSize: parsedPageSize,
-        fromDate,
-        toDate
-      });
-      res.status(200).json({
-        success: true,
-        message: 'Trailers retrieved successfully',
-        data: result.data,
-        pagination: {
-          totalRecords: result.totalRecords,
-          currentPage: result.currentPage,
-          pageSize: result.pageSize,
-          totalPages: result.totalPages
-        }
-      });
-    } catch (err) {
-      console.error('getAllTrailers controller error:', err);
-      res.status(400).json({
-        success: false,
-        message: err.message || 'Failed to retrieve trailers',
-        data: null,
-        pagination: null
-      });
-    }
-  }
-
   static async createTrailer(req, res) {
     try {
-      const data = req.body;
-      console.log('createTrailer request body:', JSON.stringify(data, null, 2));
+      const trailerData = {
+        TrailerType: req.body.TrailerType || null,
+        MaxWeight: req.body.MaxWeight ? parseFloat(req.body.MaxWeight) : null,
+        TrailerLength: req.body.TrailerLength ? parseFloat(req.body.TrailerLength) : null,
+        TrailerWidth: req.body.TrailerWidth ? parseFloat(req.body.TrailerWidth) : null,
+        TrailerHeight: req.body.TrailerHeight ? parseFloat(req.body.TrailerHeight) : null,
+        TrailerRegistrationNumber: req.body.TrailerRegistrationNumber || null,
+        MaxAllowableVolume: req.body.MaxAllowableVolume ? parseFloat(req.body.MaxAllowableVolume) : null,
+        MaxAllowableWeight: req.body.MaxAllowableWeight ? parseFloat(req.body.MaxAllowableWeight) : null,
+        CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
+      };
 
-      // Validate required fields
-      const requiredFields = ['trailerType', 'maxWeight', 'trailerLength', 'trailerWidth', 'trailerHeight', 'trailerRegistrationNumber', 'maxAllowableVolume', 'maxAllowableWeight', 'createdById'];
-      const missingFields = requiredFields.filter(field => !data[field]);
-      if (missingFields.length > 0) {
-        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-      }
-
-      // Validate numeric fields
-      const numericFields = ['maxWeight', 'trailerLength', 'trailerWidth', 'trailerHeight', 'maxAllowableVolume', 'maxAllowableWeight'];
-      numericFields.forEach(field => {
-        if (typeof data[field] !== 'number' || isNaN(data[field])) {
-          throw new Error(`Invalid value for ${field}: must be a number`);
-        }
-      });
-
-      const result = await TrailerModel.createTrailer(data);
-      res.status(201).json({
-        success: true,
-        message: result.message,
-        data: null,
-        trailerId: result.trailerId
-      });
-    } catch (err) {
-      console.error('createTrailer controller error:', err);
-      res.status(400).json({
+      const result = await TrailerModel.createTrailer(trailerData);
+      console.log('Create Trailer result:', result);
+      return res.status(result.success ? 201 : 400).json(result);
+    } catch (error) {
+      console.error('Create Trailer error:', error);
+      return res.status(500).json({
         success: false,
-        message: err.message || 'Failed to create trailer',
+        message: `Server error: ${error.message}`,
         data: null,
-        trailerId: null
-      });
-    }
-  }
-
-  static async getTrailerById(req, res) {
-    try {
-      const { id } = req.params;
-      const parsedId = parseInt(id, 10);
-      if (isNaN(parsedId)) {
-        throw new Error('Invalid Trailer ID');
-      }
-      const result = await TrailerModel.getTrailerById(parsedId);
-      if (!result) {
-        return res.status(404).json({
-          success: false,
-          message: 'Trailer not found',
-          data: null,
-          trailerId: parsedId
-        });
-      }
-      res.status(200).json({
-        success: true,
-        message: 'Trailer retrieved successfully',
-        data: result,
-        trailerId: parsedId
-      });
-    } catch (err) {
-      console.error('getTrailerById controller error:', err);
-      res.status(400).json({
-        success: false,
-        message: err.message || 'Failed to retrieve trailer',
-        data: null,
-        trailerId: parseInt(req.params.id, 10) || null
+        trailerId: null,
+        newTrailerId: null,
       });
     }
   }
 
   static async updateTrailer(req, res) {
     try {
-      const { id } = req.params;
-      const data = req.body;
-      console.log('updateTrailer request body:', JSON.stringify(data, null, 2));
-
-      const parsedId = parseInt(id, 10);
-      if (isNaN(parsedId)) {
-        throw new Error('Invalid Trailer ID');
+      const trailerId = parseInt(req.params.id);
+      if (isNaN(trailerId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing TrailerID',
+          data: null,
+          trailerId: null,
+          newTrailerId: null,
+        });
       }
-      if (!data.createdById) {
-        throw new Error('CreatedByID is required');
-      }
 
-      // Validate numeric fields if provided
-      const numericFields = ['maxWeight', 'trailerLength', 'trailerWidth', 'trailerHeight', 'maxAllowableVolume', 'maxAllowableWeight'];
-      numericFields.forEach(field => {
-        if (data[field] !== undefined && (typeof data[field] !== 'number' || isNaN(data[field]))) {
-          throw new Error(`Invalid value for ${field}: must be a number`);
-        }
-      });
+      const trailerData = {
+        TrailerID: trailerId,
+        TrailerType: req.body.TrailerType || null,
+        MaxWeight: req.body.MaxWeight ? parseFloat(req.body.MaxWeight) : null,
+        TrailerLength: req.body.TrailerLength ? parseFloat(req.body.TrailerLength) : null,
+        TrailerWidth: req.body.TrailerWidth ? parseFloat(req.body.TrailerWidth) : null,
+        TrailerHeight: req.body.TrailerHeight ? parseFloat(req.body.TrailerHeight) : null,
+        TrailerRegistrationNumber: req.body.TrailerRegistrationNumber || null,
+        MaxAllowableVolume: req.body.MaxAllowableVolume ? parseFloat(req.body.MaxAllowableVolume) : null,
+        MaxAllowableWeight: req.body.MaxAllowableWeight ? parseFloat(req.body.MaxAllowableWeight) : null,
+        CreatedByID: parseInt(req.body.CreatedByID) || req.user.personId,
+      };
 
-      const result = await TrailerModel.updateTrailer(parsedId, data);
-      res.status(200).json({
-        success: true,
-        message: result.message,
-        data: null,
-        trailerId: parsedId
-      });
-    } catch (err) {
-      console.error('updateTrailer controller error:', err);
-      res.status(400).json({
+      const result = await TrailerModel.updateTrailer(trailerData);
+      return res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+      console.error('Update Trailer error:', error);
+      return res.status(500).json({
         success: false,
-        message: err.message || 'Failed to update trailer',
+        message: `Server error: ${error.message}`,
         data: null,
-        trailerId: parseInt(req.params.id, 10) || null
+        trailerId: null,
+        newTrailerId: null,
       });
     }
   }
 
   static async deleteTrailer(req, res) {
     try {
-      const { id } = req.params;
-      const { deletedById } = req.body;
-      const parsedId = parseInt(id, 10);
-      if (isNaN(parsedId)) {
-        throw new Error('Invalid Trailer ID');
+      const trailerId = parseInt(req.params.id);
+      if (isNaN(trailerId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing TrailerID',
+          data: null,
+          trailerId: null,
+          newTrailerId: null,
+        });
       }
-      if (!deletedById) {
-        throw new Error('DeletedByID is required');
-      }
-      const result = await TrailerModel.deleteTrailer(parsedId, deletedById);
-      res.status(200).json({
-        success: true,
-        message: result.message,
-        data: null,
-        trailerId: parsedId
-      });
-    } catch (err) {
-      console.error('deleteTrailer controller error:', err);
-      res.status(400).json({
+
+      const trailerData = {
+        TrailerID: trailerId,
+        DeletedByID: parseInt(req.body.DeletedByID) || req.user.personId,
+      };
+
+      const result = await TrailerModel.deleteTrailer(trailerData);
+      return res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+      console.error('Delete Trailer error:', error);
+      return res.status(500).json({
         success: false,
-        message: err.message || 'Failed to delete trailer',
+        message: `Server error: ${error.message}`,
         data: null,
-        trailerId: parseInt(req.params.id, 10) || null
+        trailerId: null,
+        newTrailerId: null,
+      });
+    }
+  }
+
+  static async getTrailer(req, res) {
+    try {
+      const trailerId = parseInt(req.params.id);
+      if (isNaN(trailerId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or missing TrailerID',
+          data: null,
+          trailerId: null,
+          newTrailerId: null,
+        });
+      }
+
+      const trailerData = {
+        TrailerID: trailerId,
+      };
+
+      const result = await TrailerModel.getTrailer(trailerData);
+      return res.status(result.success ? 200 : 404).json(result);
+    } catch (error) {
+      console.error('Get Trailer error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        trailerId: null,
+        newTrailerId: null,
+      });
+    }
+  }
+
+  static async getAllTrailers(req, res) {
+    try {
+      const paginationData = {
+        PageNumber: req.query.pageNumber ? parseInt(req.query.pageNumber) : 1,
+        PageSize: req.query.pageSize ? parseInt(req.query.pageSize) : 10,
+      };
+
+      if (paginationData.PageNumber < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageNumber must be greater than 0',
+          data: null,
+          totalRecords: 0,
+          trailerId: null,
+          newTrailerId: null,
+        });
+      }
+      if (paginationData.PageSize < 1 || paginationData.PageSize > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'PageSize must be between 1 and 100',
+          data: null,
+          totalRecords: 0,
+          trailerId: null,
+          newTrailerId: null,
+        });
+      }
+
+      const result = await TrailerModel.getAllTrailers(paginationData);
+      return res.status(result.success ? 200 : 400).json({
+        ...result,
+        pagination: {
+          pageNumber: paginationData.PageNumber,
+          pageSize: paginationData.PageSize,
+          totalRecords: result.totalRecords || 0,
+          totalPages: Math.ceil(result.totalRecords / paginationData.PageSize),
+        },
+      });
+    } catch (error) {
+      console.error('Get All Trailers error:', error);
+      return res.status(500).json({
+        success: false,
+        message: `Server error: ${error.message}`,
+        data: null,
+        totalRecords: 0,
+        trailerId: null,
+        newTrailerId: null,
       });
     }
   }
