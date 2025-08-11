@@ -1,4 +1,4 @@
-const ShippingParcelModel = require('../models/ShippingParcelModel');
+const ShippingParcelModel = require('../models/shippingParcelModel');
 
 class ShippingParcelController {
   static async createShippingParcel(req, res) {

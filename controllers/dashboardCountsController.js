@@ -1,4 +1,4 @@
-const DashboardCountsModel = require('../models/DashboardCountsModel');
+const DashboardCountsModel = require('../models/dashboardCountsModel');
 
 class DashboardCountsController {
     static async getDashboardCounts(req, res) {

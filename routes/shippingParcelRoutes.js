@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const ShippingParcelController = require('../controllers/ShippingParcelController');
+const ShippingParcelController = require('../controllers/shippingParcelController');
 const authMiddleware = require('../middleware/authMiddleware');
 // const tableAccessMiddleware = require('../middleware/tableAccessMiddleware');
 // const permissionMiddleware = require('../middleware/permissionMiddleware');
