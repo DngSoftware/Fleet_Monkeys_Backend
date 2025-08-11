@@ -39,6 +39,12 @@ class PInvoiceParcelController {
       }
 
       const data = req.body;
+      // If a file is uploaded, set fileName and fileContent (path)
+      if (req.file) {
+        data.fileName = req.file.originalname;
+        data.fileContent = `/Uploads/${req.file.filename}`;
+      }
+
       const result = await PInvoiceParcelModel.updatePInvoiceParcel(parseInt(id), data, userId);
       res.status(200).json({
         success: true,
@@ -47,7 +53,7 @@ class PInvoiceParcelController {
       });
     } catch (err) {
       console.error('Error in updatePInvoiceParcel:', err);
-      res.status(500).json({
+      res.status(err.message.includes('Only PDF, DOC, DOCX, PNG, JPG, and JPEG files are allowed') ? 400 : 500).json({
         success: false,
         message: `Server error: ${err.message}`,
         data: null

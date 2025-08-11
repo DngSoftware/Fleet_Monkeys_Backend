@@ -15,8 +15,7 @@ class CustomerAddressController {
         'billingCurrencyId',
         'website',
         'customerNotes',
-        'isInQuickBooks',
-        'quickBookAccountId'
+        'isInQuickBooks'
       ];
       const requiredAddressFields = [
         'addressTitle',

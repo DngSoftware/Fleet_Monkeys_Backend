@@ -30,6 +30,24 @@ class PurchaseOrderController {
     try {
       const { pageNumber, pageSize, fromDate, toDate } = req.query;
 
+      // Validate query parameters
+      if (pageNumber && isNaN(parseInt(pageNumber))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageNumber',
+          data: null,
+          pagination: null
+        });
+      }
+      if (pageSize && isNaN(parseInt(pageSize))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid pageSize',
+          data: null,
+          pagination: null
+        });
+      }
+
       const result = await PurchaseOrderModel.getAllPurchaseOrders({
         pageNumber: parseInt(pageNumber) || 1,
         pageSize: parseInt(pageSize) || 10,
@@ -37,29 +55,19 @@ class PurchaseOrderController {
         toDate: toDate || null
       });
 
-      return res.status(200).json({
+      return res.status(result.success ? 200 : 400).json({
         success: result.success,
         message: result.message,
         data: result.data,
-        pagination: {
-          totalRecords: result.totalRecords,
-          currentPage: result.currentPage,
-          pageSize: result.pageSize,
-          totalPages: result.totalPages
-        }
+        pagination: result.pagination
       });
     } catch (err) {
       console.error('Error in getAllPurchaseOrders:', err);
       return res.status(500).json({
         success: false,
         message: `Server error: ${err.message}`,
-        data: [],
-        pagination: {
-          totalRecords: 0,
-          currentPage: parseInt(pageNumber) || 1,
-          pageSize: parseInt(pageSize) || 10,
-          totalPages: 0
-        }
+        data: null,
+        pagination: null
       });
     }
   }
@@ -143,7 +151,7 @@ class PurchaseOrderController {
       if (isNaN(POID)) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid or missing PurchaseOrderID',
+          message: 'Invalid or missing POID',
           data: null,
           POID: null,
           newPOID: null
@@ -152,11 +160,11 @@ class PurchaseOrderController {
 
       const result = await PurchaseOrderModel.getPoApprovalStatus(POID);
       return res.status(result.success ? 200 : 400).json(result);
-    } catch (error) {
-      console.error('Get PurchaseOrder Approval Status error:', error);
+    } catch (err) {
+      console.error('Get PurchaseOrder Approval Status error:', err);
       return res.status(500).json({
         success: false,
-        message: `Server error: ${error.message}`,
+        message: `Server error: ${err.message}`,
         data: null,
         POID: null,
         newPOID: null

@@ -1,4 +1,5 @@
 const poolPromise = require('../config/db.config');
+const exchange = require('node-currency-exchange-rates');
 
 class SalesQuotationModel {
    // Get all Sales Quotations (unchanged for brevity)
@@ -80,83 +81,81 @@ class SalesQuotationModel {
   }
 
   // Create a new Sales Quotation
-  static async createSalesQuotation(data) {
+   static async createSalesQuotation(data) {
     try {
       const pool = await poolPromise;
 
       // Validate required fields
-      if (!data.purchaserfqid || isNaN(data.purchaserfqid)) {
-        throw new Error('PurchaseRFQID is required and must be a number');
+      if (!data.purchaseRFQId || !Number.isInteger(data.purchaseRFQId) || data.purchaseRFQId <= 0) {
+        throw new Error('Invalid PurchaseRFQID: must be a positive integer');
       }
-      if (!data.createdbyid || isNaN(data.createdbyid)) {
-        throw new Error('CreatedByID is required and must be a number');
+      if (!data.createdById || !Number.isInteger(data.createdById) || data.createdById <= 0) {
+        throw new Error('Invalid CreatedById: must be a positive integer');
       }
 
-      const queryParams = [
-        'INSERT',
-        null,
-        data.salesrfqid || null,
-        data.purchaserfqid,
-        data.supplierid || null,
-        data.status || 'Pending',
-        data.originwarehouseaddressid || null,
-        data.collectionaddressid || null,
-        data.billingaddressid || null,
-        data.destinationaddressid || null,
-        data.destinationwarehouseaddressid || null,
-        data.collectionwarehouseid || null,
-        data.postingdate || null,
-        data.deliverydate || null,
-        data.requiredbydate || null,
-        data.datereceived || null,
-        data.servicetypeid || null,
-        data.externalrefno || null,
-        data.externalsupplierid || null,
-        data.customerid || null,
-        data.companyid || null,
-        data.terms || null,
-        data.packagingrequiredyn || 0,
-        data.collectfromsupplieryn || 0,
-        data.salesquotationcompletedyn || 0,
-        data.shippingpriorityid || null,
-        data.validtilldate || null,
-        data.currencyid || null,
-        data.suppliercontactpersonid || null,
-        data.isdeliveryonly || 0,
-        data.taxesandothercharges || 0,
-        data.createdbyid,
-        null
-      ];
-
-      console.log(`Executing SP_ManageSalesQuotation with params:`, queryParams);
-
-      const [result] = await pool.query(
-        `CALL SP_ManageSalesQuotation(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewSalesQuotationID)`,
-        queryParams
+      // Call stored procedure
+      await pool.query('SET @p_Result = 0, @p_Message = "", @p_NewSalesQuotationID = 0');
+      await pool.query(
+        `CALL SP_ManageSalesQuotation_keyur(
+          'INSERT', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+          @p_Result, @p_Message, @p_NewSalesQuotationID
+        )`,
+        [
+          data.salesRFQId || null,
+          data.purchaseRFQId,
+          data.supplierId || null,
+          data.status || 'Pending',
+          data.originWarehouseId || null,
+          data.collectionAddressId || null,
+          data.billingAddressId || null,
+          data.destinationAddressId || null,
+          data.destinationWarehouseId || null,
+          data.collectionWarehouseId || null,
+          data.postingDate || null,
+          data.deliveryDate || null,
+          data.requiredByDate || null,
+          data.dateReceived || null,
+          data.serviceTypeId || null,
+          data.externalRefNo || null,
+          data.externalSupplierId || null,
+          data.customerId || null,
+          data.companyId || null,
+          data.terms || null,
+          data.packagingRequiredYN || 0,
+          data.collectFromSupplierYN || 0,
+          data.salesQuotationCompletedYN || 0,
+          data.shippingPriorityId || null,
+          data.validTillDate || null,
+          data.currencyId || null,
+          data.supplierContactPersonId || null,
+          data.isDeliveryOnly || 0,
+          data.taxesAndOtherCharges || 0,
+          data.createdById,
+          null // Added extra parameter to test for 33 inputs
+        ]
       );
 
       const [[outParams]] = await pool.query(
-        `SELECT 
-           @p_Result AS result,
-           @p_Message AS message,
-           @p_NewSalesQuotationID AS newsalesquotationid`
+        'SELECT @p_Result AS result, @p_Message AS message, @p_NewSalesQuotationID AS newSalesQuotationId'
       );
 
       if (outParams.result !== 1) {
-        throw new Error(outParams.message || 'Failed to create Sales Quotation: Check dbo_tblerrorlog for details');
+        throw new Error(outParams.message || 'Failed to create Sales Quotation');
       }
 
-      console.log(`Created Sales Quotation with ID: ${outParams.newsalesquotationid}`);
-
       return {
-        newsalesquotationid: outParams.newsalesquotationid,
-        message: outParams.message
+        success: true,
+        message: outParams.message,
+        salesquotationid: outParams.newSalesQuotationId,
+        newSalesQuotationId: outParams.newSalesQuotationId,
+        data: null
       };
     } catch (err) {
-      console.error('createSalesQuotation error:', err.message, err.stack);
       throw new Error(`Database error: ${err.message}`);
     }
   }
+
+
   // Get a single Sales Quotation by ID
   static async getSalesQuotationById(id) {
     try {

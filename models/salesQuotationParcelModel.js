@@ -1,4 +1,6 @@
 const poolPromise = require('../config/db.config');
+const ExchangeRateService = require('../services/exchangeRateService');
+const ExchangeRateModel = require('../models/exchangeRateModel');
 
 class SalesQuotationParcelModel {
   // Create a Sales Quotation Parcel (Commented out since SP doesn't support INSERT)
@@ -199,67 +201,67 @@ class SalesQuotationParcelModel {
     }
   }
 
- static async updateSalesQuotationParcel(id, data) {
+  static async updateSalesQuotationParcel(id, data) {
     try {
-        const pool = await poolPromise;
+      const pool = await poolPromise;
 
-        // Validate parameters
-        if (!Number.isInteger(id) || id <= 0) {
-            throw new Error('Invalid id: must be a positive integer');
-        }
-        if (!Number.isInteger(data.createdById) || data.createdById <= 0) {
-            throw new Error('Invalid createdById: must be a positive integer');
-        }
+      // Validate parameters
+      if (!Number.isInteger(id) || id <= 0) {
+        throw new Error('Invalid id: must be a positive integer');
+      }
+      if (!Number.isInteger(data.createdById) || data.createdById <= 0) {
+        throw new Error('Invalid createdById: must be a positive integer');
+      }
 
-        const queryParams = [
-            'UPDATE',
-            id,
-            data.salesQuotationId || null,
-            data.supplierQuotationParcelId || null,
-            data.parcelId || null,
-            data.itemId || null,
-            data.certificationId || null,
-            data.lineItemNumber || null,
-            data.itemQuantity || null,
-            data.uomId || null,
-            data.countryOfOriginId || null,
-            data.supplierRate || null,
-            data.supplierAmount || null,
-            data.supplierCurrencyId || null,
-            data.exchangeRate || null,
-            data.supplierExchangeAmount || null,
-            data.localCurrencyId || null,
-            data.salesRate || null,
-            data.salesAmount || null,
-            data.profit || null,
-            data.internationalProcurementAlgorithmId || null,
-            data.createdById
-        ];
+      const queryParams = [
+        'UPDATE',
+        id,
+        data.salesQuotationId || null,
+        data.supplierQuotationParcelId || null,
+        data.parcelId || null,
+        data.itemId || null,
+        data.certificationId || null,
+        data.lineItemNumber || null,
+        data.itemQuantity || null,
+        data.uomId || null,
+        data.countryOfOriginId || null,
+        data.supplierRate || null,
+        data.supplierAmount || null,
+        data.supplierCurrencyId || null,
+        data.exchangeRate || null,
+        data.supplierExchangeAmount || null,
+        data.localCurrencyId || null,
+        data.salesRate || null,
+        data.salesAmount || null,
+        data.profit || null,
+        data.internationalProcurementAlgorithmId || null,
+        data.createdById
+      ];
 
-        // Execute the stored procedure with OUT parameters as variables
-        await pool.query(
-            'SET @p_Result = 0, @p_Message = ""'
-        );
-        await pool.query(
-            'CALL SP_ManageSalesQuotationParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
-            queryParams
-        );
+      // Execute the stored procedure with OUT parameters as variables
+      await pool.query(
+        'SET @p_Result = 0, @p_Message = ""'
+      );
+      await pool.query(
+        'CALL SP_ManageSalesQuotationParcel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message)',
+        queryParams
+      );
 
-        const [[outParams]] = await pool.query(
-            'SELECT @p_Result AS result, @p_Message AS message'
-        );
+      const [[outParams]] = await pool.query(
+        'SELECT @p_Result AS result, @p_Message AS message'
+      );
 
-        if (outParams.result !== 1) {
-            throw new Error(outParams.message || 'Failed to update Sales Quotation Parcel');
-        }
+      if (outParams.result !== 1) {
+        throw new Error(outParams.message || 'Failed to update Sales Quotation Parcel');
+      }
 
-        return {
-            message: outParams.message
-        };
+      return {
+        message: outParams.message
+      };
     } catch (err) {
-        throw new Error(`Database error: ${err.message}`);
+      throw new Error(`Database error: ${err.message}`);
     }
-}
+  }
 
   // Delete a Sales Quotation Parcel
   static async deleteSalesQuotationParcel(id, deletedById) {
@@ -315,6 +317,93 @@ class SalesQuotationParcelModel {
       return {
         message: outParams.message
       };
+    } catch (err) {
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
+
+  // Updated method to update exchange rates for all parcels of a sales quotation
+  static async updateExchangeRatesForQuotation(salesQuotationId, updatedById) {
+    try {
+      const pool = await poolPromise;
+
+      if (!Number.isInteger(salesQuotationId) || salesQuotationId <= 0) {
+        throw new Error('Invalid salesQuotationId: must be a positive integer');
+      }
+      if (!Number.isInteger(updatedById) || updatedById <= 0) {
+        throw new Error('Invalid updatedById: must be a positive integer');
+      }
+
+      const [parcels] = await pool.query(
+        'SELECT * FROM dbo_tblsalesquotationparcel WHERE SalesQuotationID = ? AND (IsDeleted = 0 OR IsDeleted IS NULL)',
+        [salesQuotationId]
+      );
+
+      const updatedParcels = [];
+      let updatedCount = 0;
+
+      for (const parcel of parcels) {
+        const { SalesQuotationParcelID, SupplierCurrencyID: fromId, LocalCurrencyID: toId, SupplierAmount } = parcel;
+
+        if (!fromId || !toId || !SupplierAmount) continue; // Skip if missing required fields
+
+        let rate;
+        let exchangeRateDate;
+        if (fromId === toId) {
+          rate = 1;
+          exchangeRateDate = new Date().toISOString().slice(0, 10);
+        } else {
+          // Get currency names
+          const [fromCurRows] = await pool.query('SELECT CurrencyName FROM dbo_tblcurrency1 WHERE CurrencyID = ?', [fromId]);
+          const [toCurRows] = await pool.query('SELECT CurrencyName FROM dbo_tblcurrency1 WHERE CurrencyID = ?', [toId]);
+
+          if (!fromCurRows.length || !toCurRows.length) continue; // Skip if currencies not found
+
+          const fromCur = fromCurRows[0].CurrencyName;
+          const toCur = toCurRows[0].CurrencyName;
+
+          // Try to get rate from table
+          try {
+            const existingRate = await ExchangeRateModel.getExchangeRate(fromId, toId);
+            rate = existingRate.ExchangeRate;
+            exchangeRateDate = existingRate.ExchangeRatesDate;
+          } catch (err) {
+            if (err.message.includes('not found')) {
+              // Fetch from API and store
+              const { rate: apiRate, date } = await ExchangeRateService.fetchExchangeRate(fromCur, toCur);
+              await ExchangeRateModel.storeExchangeRate(fromId, toId, apiRate, date);
+              rate = apiRate;
+              exchangeRateDate = date;
+            } else {
+              throw err;
+            }
+          }
+        }
+
+        const supplierExchangeAmount = SupplierAmount * rate;
+
+        // Update the parcel
+        const updateData = {
+          exchangeRate: rate,
+          supplierExchangeAmount,
+          createdById: updatedById // Assuming this is used as updatedById
+        };
+
+        await this.updateSalesQuotationParcel(parcel.SalesQuotationParcelID, updateData);
+        updatedCount++;
+
+        // Collect updated parcel details
+        updatedParcels.push({
+          salesQuotationParcelId: SalesQuotationParcelID,
+          supplierCurrencyId: fromId,
+          localCurrencyId: toId,
+          exchangeRate: rate,
+          supplierExchangeAmount,
+          exchangeRateDate
+        });
+      }
+
+      return { updatedCount, updatedParcels };
     } catch (err) {
       throw new Error(`Database error: ${err.message}`);
     }

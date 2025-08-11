@@ -34,7 +34,7 @@ class SalesQuotationParcelController {
       const { id } = req.params;
       const salesQuotationParcel = await SalesQuotationParcelModel.getSalesQuotationParcelById(parseInt(id));
       if (!salesQuotationParcel) {
-        return res.status(404).json({
+        return res.status(400).json({
           success: false,
           message: 'Sales Quotation Parcel not found or deleted.',
           data: null,
@@ -73,7 +73,7 @@ class SalesQuotationParcelController {
         });
       }
 
-      const result = await SalesQuotationParcelModel.updateSalesQuotationParcel(parseInt(id), data);
+      const result = await SalesQuotationParcelModel.updateSalesQuotationParcel(parseInt(id), data );
       res.status(200).json({
         success: true,
         message: result.message,
@@ -119,6 +119,46 @@ class SalesQuotationParcelController {
         message: `Server error: ${err.message}`,
         data: null,
         salesQuotationParcelId: null
+      });
+    }
+  }
+
+  // Updated controller method to update exchange rates
+  static async updateExchangeRates(req, res) {
+    try {
+      const { salesQuotationId, updatedById } = req.body;
+
+      if (!salesQuotationId) {
+        return res.status(400).json({
+          success: false,
+          message: 'salesQuotationId is required.',
+          data: null
+        });
+      }
+      if (!updatedById) {
+        return res.status(400).json({
+          success: false,
+          message: 'updatedById is required.',
+          data: null
+        });
+      }
+
+      const result = await SalesQuotationParcelModel.updateExchangeRatesForQuotation(parseInt(salesQuotationId), parseInt(updatedById));
+
+      res.status(200).json({
+        success: true,
+        message: `Exchange rates updated for ${result.updatedCount} parcels successfully.`,
+        data: {
+          updatedCount: result.updatedCount,
+          updatedParcels: result.updatedParcels
+        }
+      });
+    } catch (err) {
+      console.error('Error in updateExchangeRates:', err);
+      res.status(500).json({
+        success: false,
+        message: `Server error: ${err.message}`,
+        data: null
       });
     }
   }

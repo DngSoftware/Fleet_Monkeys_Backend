@@ -1,7 +1,6 @@
 const SalesInvoiceModel = require('../models/salesInvoiceModel');
 
 class SalesInvoiceController {
-  // Get all Sales Invoices
   static async getAllSalesInvoices(req, res) {
     try {
       const {
@@ -51,7 +50,6 @@ class SalesInvoiceController {
     }
   }
 
-  // Get Sales Invoice by ID
   static async getSalesInvoiceById(req, res) {
     try {
       const { id } = req.params;
@@ -89,7 +87,6 @@ class SalesInvoiceController {
     }
   }
 
-  // Create a Sales Invoice
   static async createSalesInvoice(req, res) {
     try {
       const userId = req.user && req.user.personId ? parseInt(req.user.personId) : null;
@@ -97,17 +94,36 @@ class SalesInvoiceController {
         return res.status(401).json({
           success: false,
           message: 'Unauthorized: User ID not found in authentication context.',
-          data: null
+          data: null,
+          salesInvoiceId: null
         });
       }
 
       const data = req.body;
-      // Validate required fields (based on SP_ManageSalesInvoiceDEV requirements)
       if (!data.salesOrderId && !data.salesRFQId) {
         return res.status(400).json({
           success: false,
-          message: 'Either SalesOrderID or SalesRFQID is required.',
-          data: null
+          message: 'Either salesOrderId or salesRFQId is required.',
+          data: null,
+          salesInvoiceId: null
+        });
+      }
+
+      if (data.originWarehouseId && isNaN(parseInt(data.originWarehouseId))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid originWarehouseId: must be an integer',
+          data: null,
+          salesInvoiceId: null
+        });
+      }
+
+      if (data.destinationWarehouseId && isNaN(parseInt(data.destinationWarehouseId))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid destinationWarehouseId: must be an integer',
+          data: null,
+          salesInvoiceId: null
         });
       }
 
@@ -115,19 +131,20 @@ class SalesInvoiceController {
       res.status(201).json({
         success: true,
         message: result.message,
-        data: { salesInvoiceId: result.salesInvoiceId }
+        data: { salesInvoiceId: result.salesInvoiceId },
+        salesInvoiceId: result.salesInvoiceId
       });
     } catch (err) {
       console.error('Error in createSalesInvoice:', err);
       res.status(500).json({
         success: false,
         message: `Server error: ${err.message}`,
-        data: null
+        data: null,
+        salesInvoiceId: null
       });
     }
   }
 
-  // Approve a Sales Invoice
   static async approveSalesInvoice(req, res) {
     try {
       const { SalesInvoiceID } = req.body;
@@ -172,7 +189,7 @@ class SalesInvoiceController {
     }
   }
 
-         static async getSalesInvoiceApprovalStatus(req, res) {
+  static async getSalesInvoiceApprovalStatus(req, res) {
     try {
       const SalesInvoiceID = parseInt(req.params.id);
       if (isNaN(SalesInvoiceID)) {

@@ -2,8 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const poolPromise = require('./config/db.config');
-
-// Import all routes
 const salesRFQRoutes = require('./routes/salesRFQRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const companyRoutes = require('./routes/companyRoutes');
@@ -69,6 +67,7 @@ const commentsRoutes = require('./routes/commentsRoutes');
 const tableCountsRoutes = require('./routes/tableCountsRoutes');
 const dashboardCountsRoutes = require('./routes/DashboardCountsRoutes');
 const exchangeRateRoutes = require('./routes/exchangeRateRoutes');
+// const ExchangeRateService = require('./services/exchangeRateService');
 const customerAddressRoutes = require('./routes/customerAddressRoutes');
 const supplierAddressRoutes = require('./routes/supplierAddressRoutes');
 const ShippingParcelRoutes = require('./routes/ShippingParcelRoutes');
@@ -76,12 +75,7 @@ const repackagedPalletOrTobaccoRoutes = require('./routes/repackagedPalletOrToba
 const pInvoiceAdjustmentRoutes = require('./routes/pInvoiceAdjustmentRoutes');
 const transactionsRoutes = require('./routes/transactionsRoutes');
 const pInvoiceParcelPalletDimensionsRoutes = require('./routes/pInvoiceParcelPalletDimensionsRoutes');
-const loadRoutes = require('./routes/loadRoutes');
-const trailerRoutes = require('./routes/trailerRoutes');
-const loadTrailerRoutes = require('./routes/loadTrailerRoutes');
-
-// Import the enhanced exchange rate service
-const ExchangeRateService = require('./services/exchangeRateService');
+const salesQuotationRoutesKeyur = require('./routes/salesQuotationRoutesKeyur');
 
 const app = express();
 
@@ -99,7 +93,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Accept', 'Authorization']
 }));
 
-// WebSocket setup (keeping your existing WebSocket code)
+// WebSocket setup
 const http = require('http');
 const WebSocket = require('ws');
 const SalesRFQModel = require('./models/salesRFQModel');
@@ -145,11 +139,7 @@ SalesRFQModel.onApprovalUpdate = broadcastApprovalUpdate;
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    success: true, 
-    timestamp: new Date().toISOString(),
-    exchangeRateScheduler: ExchangeRateService.getSchedulerStatus()
-  });
+  res.status(200).json({ success: true, timestamp: new Date().toISOString() });
 });
 
 // Initialize server
@@ -159,13 +149,18 @@ async function startServer() {
     const pool = await poolPromise;
     console.log('Database pool initialized successfully');
 
-    // Start exchange rate scheduler automatically
-    try {
-      ExchangeRateService.startScheduler();
-    } catch (err) {
-      console.error('Failed to start exchange rate scheduler:', err.message);
-      // Continue server startup even if scheduler fails to start
-    }
+    // Initialize cron job for exchange rate caching
+    const cronJob = require('./cronJob'); // Adjust path if cronJob.js is in a different directory
+    console.log('Cron job for exchange rate caching initialized');
+
+    // // Fetch and update exchange rates (optional, can be triggered separately)
+    // try {
+    //   await ExchangeRateService.fetchAndUpdateRates();
+    //   console.log('Exchange rates updated successfully');
+    // } catch (err) {
+    //   console.error('Failed to update exchange rates during startup:', err.message);
+    //   // Continue server startup even if exchange rate update fails
+    // }
 
     // Mount routes with validation
     const routes = [
@@ -241,9 +236,7 @@ async function startServer() {
       ['/api/pInvoiceAdjustment', pInvoiceAdjustmentRoutes],
       ['/api/transactions', transactionsRoutes],
       ['/api/pInvoiceParcelPalletDimensions', pInvoiceParcelPalletDimensionsRoutes],
-      ['/api/load', loadRoutes],
-      ['/api/trailer', trailerRoutes],
-      ['/api/loadTrailer', loadTrailerRoutes]
+      ['/api/salesQuotationKeyur', salesQuotationRoutesKeyur]
     ];
 
     routes.forEach(([path, route]) => {
@@ -263,7 +256,8 @@ async function startServer() {
       });
     });
 
-    const PORT = process.env.PORT || 7001;
+    // dummy
+    const PORT = process.env.PORT || 7000;
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
     });
@@ -272,9 +266,6 @@ async function startServer() {
     const shutdown = async (signal) => {
       console.log(`Received ${signal}. Shutting down...`);
       try {
-        // Stop exchange rate scheduler
-        await ExchangeRateService.shutdown();
-
         server.close(() => {
           console.log('HTTP server closed');
         });
