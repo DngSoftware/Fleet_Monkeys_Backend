@@ -228,4 +228,6 @@ class SalesRFQParcelModel {
   }
 }
 
-module.exports = SalesRFQParcelModel;
+
+
+module.exports = SalesRFQParcelModel;   

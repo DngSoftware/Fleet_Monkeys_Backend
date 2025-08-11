@@ -1,287 +1,331 @@
 const poolPromise = require('../config/db.config');
 
 class LoadModel {
-  // Get paginated Loads
-  static async getAllLoads({ pageNumber = 1, pageSize = 10, fromDate = null, toDate = null }) {
-    try {
-      const pool = await poolPromise;
-
-      pageNumber = parseInt(pageNumber, 10);
-      pageSize = parseInt(pageSize, 10);
-      if (isNaN(pageNumber) || pageNumber < 1) pageNumber = 1;
-      if (isNaN(pageSize) || pageSize < 1 || pageSize > 100) pageSize = 10;
-
-      let formattedFromDate = null, formattedToDate = null;
-
-      if (fromDate) {
-        formattedFromDate = new Date(fromDate);
-        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
-      }
-      if (toDate) {
-        formattedToDate = new Date(toDate);
-        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
-      }
-      if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
-        throw new Error('fromDate cannot be later than toDate');
-      }
-
-      const offset = (pageNumber - 1) * pageSize;
-      let query = `
-        SELECT l.*, 
-               p.FirstName AS DriverName, 
-               v.VehicleID, 
-               c.CompanyID, 
-               ow.WarehouseName AS OriginWarehouseName, 
-               dw.WarehouseName AS DestinationWarehouseName
-        FROM dbo_tblload l
-        LEFT JOIN dbo_tblperson p ON l.DriverID = p.PersonID
-        LEFT JOIN dbo_tblvehicle v ON l.VehicleID = v.VehicleID
-        LEFT JOIN dbo_tblcompany c ON l.CompanyID = c.CompanyID
-        LEFT JOIN dbo_tblwarehouse ow ON l.OriginWarehouseID = ow.WarehouseID
-        LEFT JOIN dbo_tblwarehouse dw ON l.DestinationWarehouseID = dw.WarehouseID
-        WHERE l.IsDeleted = 0
-      `;
-      const queryParams = [];
-
-      if (formattedFromDate) {
-        query += ' AND l.CreatedDateTime >= ?';
-        queryParams.push(formattedFromDate.toISOString().split('T')[0]);
-      }
-      if (formattedToDate) {
-        query += ' AND l.CreatedDateTime <= ?';
-        queryParams.push(formattedToDate.toISOString().split('T')[0]);
-      }
-
-      query += ' ORDER BY l.LoadID LIMIT ? OFFSET ?';
-      queryParams.push(pageSize, offset);
-
-      console.log('getAllLoads query:', query);
-      console.log('getAllLoads params:', queryParams);
-
-      const [results] = await pool.query(query, queryParams);
-
-      console.log('getAllLoads results:', JSON.stringify(results, null, 2));
-
-      const [totalResult] = await pool.query(
-        'SELECT COUNT(*) AS totalRecords FROM dbo_tblload WHERE IsDeleted = 0 ' +
-        (formattedFromDate ? 'AND CreatedDateTime >= ? ' : '') +
-        (formattedToDate ? 'AND CreatedDateTime <= ? ' : ''),
-        [
-          ...(formattedFromDate ? [formattedFromDate.toISOString().split('T')[0]] : []),
-          ...(formattedToDate ? [formattedToDate.toISOString().split('T')[0]] : [])
-        ]
-      );
-
-      const totalRecords = totalResult[0]?.totalRecords || 0;
-
-      return {
-        data: results,
-        totalRecords,
-        currentPage: pageNumber,
-        pageSize,
-        totalPages: Math.ceil(totalRecords / pageSize)
-      };
-    } catch (err) {
-      console.error('getAllLoads error:', err.stack);
-      throw new Error(`Database error: ${err.message}`);
-    }
-  }
-
-  // Create a new Load
-  static async createLoad(data) {
-    try {
-      const pool = await poolPromise;
-
-      // Log the incoming data for debugging
-      console.log('createLoad input data:', JSON.stringify(data, null, 2));
-
-      const queryParams = [
-        'INSERT',
-        null,
-        data.loadCode || null,
-        data.driverId || null,
-        data.vehicleId || null,
-        data.companyId || null,
-        data.originWarehouseId || null,
-        data.destinationAddressId || null,
-        data.destinationWarehouseId || null,
-        data.availableToLoadDateTime || null,
-        data.loadStartDate || null,
-        data.loadStatusId || null,
-        data.loadTypeId || null,
-        data.sortOrderId || null,
-        data.weight || null,
-        data.volume || null,
-        data.weightUomId || null,
-        data.volumeUomId || null,
-        data.repackagedPalletOrTobaccoId || null,
-        data.createdById,
-        null
-      ];
-
-      console.log('createLoad params:', queryParams);
-
-      await pool.query(
-        'CALL SP_ManageLoad(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewLoadID)',
-        queryParams
-      );
-
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message, @p_NewLoadID AS p_NewLoadID');
-
-      console.log('createLoad output:', JSON.stringify(output, null, 2));
-
-      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
-        throw new Error('Output parameters missing from SP_ManageLoad');
-      }
-
-      if (output[0].p_Result !== 1) {
-        throw new Error(output[0].p_Message || 'Failed to create Load');
-      }
-
-      return {
-        loadId: output[0].p_NewLoadID || null,
-        message: output[0].p_Message
-      };
-    } catch (err) {
-      console.error('createLoad error:', err);
-      throw new Error(`Database error: ${err.message}`);
-    }
-  }
-
-  // Get a single Load by ID
-  static async getLoadById(id) {
+  static async #executeManageStoredProcedure(action, loadData) {
     try {
       const pool = await poolPromise;
 
       const queryParams = [
-        'SELECT',
-        id,
-        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null
+        action,
+        loadData.LoadID ? parseInt(loadData.LoadID) : null,
+        loadData.LoadCode || null,
+        loadData.DriverID ? parseInt(loadData.DriverID) : null,
+        loadData.VehicleID ? parseInt(loadData.VehicleID) : null,
+        loadData.CompanyID ? parseInt(loadData.CompanyID) : null,
+        loadData.OriginWarehouseID ? parseInt(loadData.OriginWarehouseID) : null,
+        loadData.DestinationAddressID ? parseInt(loadData.DestinationAddressID) : null,
+        loadData.DestinationWarehouseID ? parseInt(loadData.DestinationWarehouseID) : null,
+        loadData.AvailableToLoadDateTime ? new Date(loadData.AvailableToLoadDateTime) : null,
+        loadData.LoadStartDate ? new Date(loadData.LoadStartDate) : null,
+        loadData.LoadStatusID ? parseInt(loadData.LoadStatusID) : null,
+        loadData.LoadTypeID ? parseInt(loadData.LoadTypeID) : null,
+        loadData.SortOrderID ? parseInt(loadData.SortOrderID) : null,
+        loadData.Weight ? parseFloat(loadData.Weight) : null,
+        loadData.Volume ? parseFloat(loadData.Volume) : null,
+        loadData.WeightUOMID ? parseInt(loadData.WeightUOMID) : null,
+        loadData.VolumeUOMID ? parseInt(loadData.VolumeUOMID) : null,
+        loadData.RepackagedPalletOrTobaccoID ? parseInt(loadData.RepackagedPalletOrTobaccoID) : null,
+        loadData.CreatedByID ? parseInt(loadData.CreatedByID) : null,
+        loadData.DeletedByID ? parseInt(loadData.DeletedByID) : null,
+        loadData.PageNumber ? parseInt(loadData.PageNumber) : 1,
+        loadData.PageSize ? parseInt(loadData.PageSize) : 10,
+        loadData.FromDate ? new Date(loadData.FromDate) : null,
+        loadData.ToDate ? new Date(loadData.ToDate) : null,
       ];
 
-      console.log('getLoadById params:', queryParams);
+      console.log(`[${new Date().toISOString()}] Executing SP_ManageLoad with ${queryParams.length} params:`, JSON.stringify(queryParams, null, 2));
 
-      const [results] = await pool.query(
-        'CALL SP_ManageLoad(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewLoadID)',
+      const [result] = await pool.query(
+        'CALL SP_ManageLoad(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewLoadID, @p_DriverName, @p_VehicleNumber, @p_CompanyName, @p_OriginWarehouseName, @p_DestinationWarehouseName)',
         queryParams
       );
 
-      console.log('getLoadById results:', JSON.stringify(results, null, 2));
+      const [[outParams]] = await pool.query(
+        'SELECT @p_Result AS result, @p_Message AS message, @p_NewLoadID AS newLoadID, @p_DriverName AS driverName, @p_VehicleNumber AS vehicleNumber, @p_CompanyName AS companyName, @p_OriginWarehouseName AS originWarehouseName, @p_DestinationWarehouseName AS destinationWarehouseName'
+      );
 
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message, @p_NewLoadID AS p_NewLoadID');
+      console.log(`[${new Date().toISOString()}] Stored procedure output for ${action}:`, JSON.stringify(outParams, null, 2));
 
-      console.log('getLoadById output:', JSON.stringify(output, null, 2));
-
-      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
-        throw new Error('Output parameters missing from SP_ManageLoad');
-      }
-
-      if (output[0].p_Result !== 1) {
-        throw new Error(output[0].p_Message || 'Load not found');
-      }
-
-      return results[0][0] || null;
-    } catch (err) {
-      console.error('getLoadById error:', err);
-      throw new Error(`Database error: ${err.message}`);
+      return {
+        success: outParams.result === 1,
+        message: outParams.message || (outParams.result === 1 ? `${action} operation completed` : 'Operation failed'),
+        data: action === 'SELECTBYID' ? (result[0]?.[0] || null) : action === 'SELECTALL' ? (result[0] || []) : null,
+        loadId: loadData.LoadID,
+        newLoadId: outParams.newLoadID ? parseInt(outParams.newLoadID) : null,
+        totalRecords: action === 'GETCOUNT' ? (result[0]?.[0]?.TotalRecords || 0) : 0,
+        driverName: outParams.driverName || null,
+        vehicleNumber: outParams.vehicleNumber || null,
+        companyName: outParams.companyName || null,
+        originWarehouseName: outParams.originWarehouseName || null,
+        destinationWarehouseName: outParams.destinationWarehouseName || null,
+      };
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] Database error in ${action} operation:`, error);
+      throw new Error(`Database error: ${error.message || 'Unknown error'}`);
     }
   }
 
-  // Update a Load
-  static async updateLoad(id, data) {
-    try {
-      const pool = await poolPromise;
+  static async #validateForeignKeys(loadData, action) {
+    const pool = await poolPromise;
+    const errors = [];
 
-      console.log('updateLoad input data:', JSON.stringify(data, null, 2));
-
-      const queryParams = [
-        'UPDATE',
-        id,
-        data.loadCode || null,
-        data.driverId || null,
-        data.vehicleId || null,
-        data.companyId || null,
-        data.originWarehouseId || null,
-        data.destinationAddressId || null,
-        data.destinationWarehouseId || null,
-        data.availableToLoadDateTime || null,
-        data.loadStartDate || null,
-        data.loadStatusId || null,
-        data.loadTypeId || null,
-        data.sortOrderId || null,
-        data.weight || null,
-        data.volume || null,
-        data.weightUomId || null,
-        data.volumeUomId || null,
-        data.repackagedPalletOrTobaccoId || null,
-        data.createdById,
-        null
-      ];
-
-      console.log('updateLoad params:', queryParams);
-
-      await pool.query(
-        'CALL SP_ManageLoad(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewLoadID)',
-        queryParams
-      );
-
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message, @p_NewLoadID AS p_NewLoadID');
-
-      console.log('updateLoad output:', JSON.stringify(output, null, 2));
-
-      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
-        throw new Error('Output parameters missing from SP_ManageLoad');
+    if (action === 'INSERT' || action === 'UPDATE') {
+      if (!loadData.CreatedByID) {
+        errors.push('CreatedByID is required');
+      }
+      if (action === 'INSERT' && (!loadData.LoadStatusID || !loadData.LoadTypeID)) {
+        errors.push('LoadStatusID and LoadTypeID are required for INSERT');
       }
 
-      if (output[0].p_Result !== 1) {
-        throw new Error(output[0].p_Message || 'Failed to update Load');
+      if (loadData.DriverID) {
+        const [driverCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblperson WHERE PersonID = ? AND IsDeleted = 0',
+          [parseInt(loadData.DriverID)]
+        );
+        if (driverCheck.length === 0) errors.push(`DriverID ${loadData.DriverID} does not exist`);
       }
-
-      return {
-        message: output[0].p_Message
-      };
-    } catch (err) {
-      console.error('updateLoad error:', err);
-      throw new Error(`Database error: ${err.message}`);
+      if (loadData.VehicleID) {
+        const [vehicleCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblvehicle WHERE VehicleID = ? AND IsDeleted = 0',
+          [parseInt(loadData.VehicleID)]
+        );
+        if (vehicleCheck.length === 0) errors.push(`VehicleID ${loadData.VehicleID} does not exist`);
+      }
+      if (loadData.CompanyID) {
+        const [companyCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblcompany WHERE CompanyID = ? AND IsDeleted = 0',
+          [parseInt(loadData.CompanyID)]
+        );
+        if (companyCheck.length === 0) errors.push(`CompanyID ${loadData.CompanyID} does not exist`);
+      }
+      if (loadData.OriginWarehouseID) {
+        const [originWarehouseCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblwarehouse WHERE WarehouseID = ? AND IsDeleted = 0',
+          [parseInt(loadData.OriginWarehouseID)]
+        );
+        if (originWarehouseCheck.length === 0) errors.push(`OriginWarehouseID ${loadData.OriginWarehouseID} does not exist`);
+      }
+      if (loadData.DestinationWarehouseID) {
+        const [destinationWarehouseCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblwarehouse WHERE WarehouseID = ? AND IsDeleted = 0',
+          [parseInt(loadData.DestinationWarehouseID)]
+        );
+        if (destinationWarehouseCheck.length === 0) errors.push(`DestinationWarehouseID ${loadData.DestinationWarehouseID} does not exist`);
+      }
+      if (loadData.DestinationAddressID) {
+        const [addressCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tbladdresses WHERE AddressID = ? AND IsDeleted = 0',
+          [parseInt(loadData.DestinationAddressID)]
+        );
+        if (addressCheck.length === 0) errors.push(`DestinationAddressID ${loadData.DestinationAddressID} does not exist`);
+      }
+      if (loadData.RepackagedPalletOrTobaccoID) {
+        const [repackagedCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblrepackagedpalletortobacco WHERE RepackagedPalletOrTobaccoID = ? AND IsDeleted = 0',
+          [parseInt(loadData.RepackagedPalletOrTobaccoID)]
+        );
+        if (repackagedCheck.length === 0) errors.push(`RepackagedPalletOrTobaccoID ${loadData.RepackagedPalletOrTobaccoID} does not exist`);
+      }
+      if (loadData.WeightUOMID) {
+        const [weightUOMCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tbluom WHERE UOMID = ? AND IsDeleted = 0',
+          [parseInt(loadData.WeightUOMID)]
+        );
+        if (weightUOMCheck.length === 0) errors.push(`WeightUOMID ${loadData.WeightUOMID} does not exist`);
+      }
+      if (loadData.VolumeUOMID) {
+        const [volumeUOMCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tbluom WHERE UOMID = ? AND IsDeleted = 0',
+          [parseInt(loadData.VolumeUOMID)]
+        );
+        if (volumeUOMCheck.length === 0) errors.push(`VolumeUOMID ${loadData.VolumeUOMID} does not exist`);
+      }
+      if (loadData.CreatedByID) {
+        const [createdByCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblperson WHERE PersonID = ? AND IsDeleted = 0',
+          [parseInt(loadData.CreatedByID)]
+        );
+        if (createdByCheck.length === 0) errors.push(`CreatedByID ${loadData.CreatedByID} does not exist`);
+      }
     }
+
+    if (action === 'DELETE' || action === 'HARDDELETE') {
+      if (loadData.DeletedByID) {
+        const [deletedByCheck] = await pool.query(
+          'SELECT 1 FROM dbo_tblperson WHERE PersonID = ? AND IsDeleted = 0',
+          [parseInt(loadData.DeletedByID)]
+        );
+        if (deletedByCheck.length === 0) errors.push(`DeletedByID ${loadData.DeletedByID} does not exist`);
+      }
+    }
+
+    return errors.length > 0 ? errors.join('; ') : null;
   }
 
-  // Delete a Load
-  static async deleteLoad(id, deletedById) {
+  static async createLoad(loadData) {
+    const requiredFields = ['CreatedByID', 'LoadStatusID', 'LoadTypeID'];
+    const missingFields = requiredFields.filter(field => !loadData[field]);
+    if (missingFields.length > 0) {
+      return {
+        success: false,
+        message: `${missingFields.join(', ')} are required`,
+        data: null,
+        loadId: null,
+        newLoadId: null,
+      };
+    }
+
+    const fkErrors = await this.#validateForeignKeys(loadData, 'INSERT');
+    if (fkErrors) {
+      return {
+        success: false,
+        message: `Validation failed: ${fkErrors}`,
+        data: null,
+        loadId: null,
+        newLoadId: null,
+      };
+    }
+
+    return await this.#executeManageStoredProcedure('INSERT', loadData);
+  }
+
+  static async updateLoad(loadData) {
+    if (!loadData.LoadID) {
+      return {
+        success: false,
+        message: 'LoadID is required for UPDATE',
+        data: null,
+        loadId: null,
+        newLoadId: null,
+      };
+    }
+
+    const fkErrors = await this.#validateForeignKeys(loadData, 'UPDATE');
+    if (fkErrors) {
+      return {
+        success: false,
+        message: `Validation failed: ${fkErrors}`,
+        data: null,
+        loadId: loadData.LoadID,
+        newLoadId: null,
+      };
+    }
+
+    return await this.#executeManageStoredProcedure('UPDATE', loadData);
+  }
+
+  static async deleteLoad(loadData) {
+    if (!loadData.LoadID) {
+      return {
+        success: false,
+        message: 'LoadID is required for DELETE',
+        data: null,
+        loadId: null,
+        newLoadId: null,
+      };
+    }
+
+    const fkErrors = await this.#validateForeignKeys(loadData, 'DELETE');
+    if (fkErrors) {
+      return {
+        success: false,
+        message: `Validation failed: ${fkErrors}`,
+        data: null,
+        loadId: loadData.LoadID,
+        newLoadId: null,
+      };
+    }
+
+    return await this.#executeManageStoredProcedure('DELETE', loadData);
+  }
+
+  static async hardDeleteLoad(loadData) {
+    if (!loadData.LoadID) {
+      return {
+        success: false,
+        message: 'LoadID is required for HARDDELETE',
+        data: null,
+        loadId: null,
+        newLoadId: null,
+      };
+    }
+
+    const fkErrors = await this.#validateForeignKeys(loadData, 'HARDDELETE');
+    if (fkErrors) {
+      return {
+        success: false,
+        message: `Validation failed: ${fkErrors}`,
+        data: null,
+        loadId: loadData.LoadID,
+        newLoadId: null,
+      };
+    }
+
+    return await this.#executeManageStoredProcedure('HARDDELETE', loadData);
+  }
+
+  static async getLoad(loadData) {
+    if (!loadData.LoadID) {
+      return {
+        success: false,
+        message: 'LoadID is required for SELECTBYID',
+        data: null,
+        loadId: null,
+        newLoadId: null,
+      };
+    }
+
+    return await this.#executeManageStoredProcedure('SELECTBYID', loadData);
+  }
+
+  static async getAllLoads(paginationData) {
     try {
-      const pool = await poolPromise;
+      const pageNumber = parseInt(paginationData.PageNumber) || 1;
+      const pageSize = parseInt(paginationData.PageSize) || 10;
 
-      const queryParams = [
-        'DELETE',
-        id,
-        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, deletedById
-      ];
-
-      console.log('deleteLoad params:', queryParams);
-
-      await pool.query(
-        'CALL SP_ManageLoad(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @p_Result, @p_Message, @p_NewLoadID)',
-        queryParams
-      );
-
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message, @p_NewLoadID AS p_NewLoadID');
-
-      console.log('deleteLoad output:', JSON.stringify(output, null, 2));
-
-      if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
-        throw new Error('Output parameters missing from SP_ManageLoad');
+      if (pageNumber < 1) {
+        return {
+          success: false,
+          message: 'PageNumber must be greater than 0',
+          data: null,
+          totalRecords: 0,
+          loadId: null,
+          newLoadId: null,
+        };
+      }
+      if (pageSize < 1 || pageSize > 100) {
+        return {
+          success: false,
+          message: 'PageSize must be between 1 and 100',
+          data: null,
+          totalRecords: 0,
+          loadId: null,
+          newLoadId: null,
+        };
       }
 
-      if (output[0].p_Result !== 1) {
-        throw new Error(output[0].p_Message || 'Failed to delete Load');
-      }
+      const result = await this.#executeManageStoredProcedure('SELECTALL', {
+        ...paginationData,
+        LoadID: null,
+      });
 
       return {
-        message: output[0].p_Message
+        ...result,
+        totalRecords: (await this.#executeManageStoredProcedure('GETCOUNT', {
+          ...paginationData,
+          LoadID: null,
+        })).totalRecords,
       };
-    } catch (err) {
-      console.error('deleteLoad error:', err);
-      throw new Error(`Database error: ${err.message}`);
+    } catch (error) {
+      console.error('Database error in getAllLoads:', error);
+      return {
+        success: false,
+        message: `Database error: ${error.message || 'Unknown error'}`,
+        data: null,
+        totalRecords: 0,
+        loadId: null,
+        newLoadId: null,
+      };
     }
   }
 }
