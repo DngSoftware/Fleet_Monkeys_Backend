@@ -1,4 +1,4 @@
-const SalesOrderModel = require('../models/SalesOrderModel');
+const SalesOrderModel = require('../models/salesOrderModel');
 
 class SalesOrderController {
   static async getSalesOrderById(req, res) {

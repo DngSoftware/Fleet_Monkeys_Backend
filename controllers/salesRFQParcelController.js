@@ -1,4 +1,4 @@
-const SalesRFQParcelModel = require('../models/SalesRFQParcelModel');
+const SalesRFQParcelModel = require('../models/salesRFQParcelModel');
 
 class SalesRFQParcelController {
   // Get Sales RFQ Parcels

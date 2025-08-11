@@ -69,7 +69,7 @@ const dashboardCountsRoutes = require('./routes/DashboardCountsRoutes');
 const exchangeRateRoutes = require('./routes/exchangeRateRoutes');
 const customerAddressRoutes = require('./routes/customerAddressRoutes');
 const supplierAddressRoutes = require('./routes/supplierAddressRoutes');
-const ShippingParcelRoutes = require('./routes/ShippingParcelRoutes');
+const shippingParcelRoutes = require('./routes/shippingParcelRoutes');
 const repackagedPalletOrTobaccoRoutes = require('./routes/repackagedPalletOrTobaccoRoutes');
 const pInvoiceAdjustmentRoutes = require('./routes/pInvoiceAdjustmentRoutes');
 const transactionsRoutes = require('./routes/transactionsRoutes');
@@ -234,7 +234,7 @@ async function startServer() {
       ['/api/exchange-rates', exchangeRateRoutes],
       ['/api/customerAddress', customerAddressRoutes],
       ['/api/supplierAddress', supplierAddressRoutes],
-      ['/api/ShippingParcel', ShippingParcelRoutes],
+      ['/api/shippingParcel', shippingParcelRoutes],
       ['/api/repackagedPalletOrTobacco', repackagedPalletOrTobaccoRoutes],
       ['/api/pInvoiceAdjustment', pInvoiceAdjustmentRoutes],
       ['/api/transactions', transactionsRoutes],
