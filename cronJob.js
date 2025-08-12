@@ -19,6 +19,18 @@ const updateExchangeRates = async () => {
       if (toCurrency.CurrencyID === baseCurrency.CurrencyID) continue;
 
       try {
+        // Check if exchange rate already exists for today
+        const existingRate = await ExchangeRateModel.getExchangeRate(
+          baseCurrency.CurrencyID,
+          toCurrency.CurrencyID,
+          new Date().toISOString().slice(0, 10)
+        ).catch(() => null);
+
+        if (existingRate) {
+          console.log(`Exchange rate for ${baseCurrency.CurrencyName} to ${toCurrency.CurrencyName} already exists for today`);
+          continue; // Skip if rate exists
+        }
+
         const { rate, date } = await ExchangeRateService.fetchExchangeRate(
           baseCurrency.CurrencyName,
           toCurrency.CurrencyName

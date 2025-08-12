@@ -37,36 +37,40 @@ class ExchangeRateModel {
     }
   }
 
-  static async storeExchangeRate(fromCurrencyId, toCurrencyId, rate, date) {
-    try {
-      const pool = await poolPromise;
+static async storeExchangeRate(fromCurrencyId, toCurrencyId, rate, date) {
+  try {
+    const pool = await poolPromise;
 
-      if (!Number.isInteger(Number(fromCurrencyId)) || fromCurrencyId <= 0) {
-        throw new Error('Invalid FromCurrencyID');
-      }
-      if (!Number.isInteger(Number(toCurrencyId)) || toCurrencyId <= 0) {
-        throw new Error('Invalid ToCurrencyID');
-      }
-      if (!rate || isNaN(parseFloat(rate))) {
-        throw new Error('Invalid ExchangeRate');
-      }
-      if (!date || isNaN(new Date(date))) {
-        throw new Error('Invalid ExchangeRatesDate');
-      }
-
-      const query = 'INSERT INTO dbo_tblexchangerates (FromCurrencyID, ToCurrencyID, ExchangeRatesDate, ExchangeRate) VALUES (?, ?, ?, ?)';
-      const params = [fromCurrencyId, toCurrencyId, date, parseFloat(rate)];
-
-      const [result] = await pool.query(query, params);
-      return {
-        exchangeRateId: result.insertId,
-        message: 'Exchange rate stored successfully',
-      };
-    } catch (err) {
-      console.error('storeExchangeRate error:', err);
-      throw new Error(`Database error: ${err.message}`);
+    if (!Number.isInteger(Number(fromCurrencyId)) || fromCurrencyId <= 0) {
+      throw new Error('Invalid FromCurrencyID');
     }
+    if (!Number.isInteger(Number(toCurrencyId)) || toCurrencyId <= 0) {
+      throw new Error('Invalid ToCurrencyID');
+    }
+    if (!rate || isNaN(parseFloat(rate))) {
+      throw new Error('Invalid ExchangeRate');
+    }
+    if (!date || isNaN(new Date(date))) {
+      throw new Error('Invalid ExchangeRatesDate');
+    }
+
+    const query = `
+      INSERT INTO dbo_tblexchangerates (FromCurrencyID, ToCurrencyID, ExchangeRatesDate, ExchangeRate)
+      VALUES (?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE ExchangeRate = ?, ExchangeRatesID = LAST_INSERT_ID(ExchangeRatesID)
+    `;
+    const params = [fromCurrencyId, toCurrencyId, date, parseFloat(rate), parseFloat(rate)];
+
+    const [result] = await pool.query(query, params);
+    return {
+      exchangeRateId: result.insertId || (await pool.query('SELECT LAST_INSERT_ID() AS id')[0][0].id),
+      message: 'Exchange rate stored or updated successfully',
+    };
+  } catch (err) {
+    console.error('storeExchangeRate error:', err);
+    throw new Error(`Database error: ${err.message}`);
   }
+}
 
   static async getExchangeRate(fromCurrencyId, toCurrencyId, date = new Date().toISOString().slice(0, 10)) {
     try {
