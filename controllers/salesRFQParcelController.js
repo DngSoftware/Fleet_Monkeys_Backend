@@ -1,7 +1,7 @@
 const SalesRFQParcelModel = require('../models/salesRFQParcelModel');
 
 class SalesRFQParcelController {
-  // Get Sales RFQ Parcels
+  // Get Sales RFQ Parcelss
   static async getSalesRFQParcels(req, res) {
     try {
       const { salesRFQParcelId, salesRFQId } = req.query;
