@@ -152,9 +152,9 @@ async function startServer() {
     const pool = await poolPromise;
     console.log('Database pool initialized successfully');
 
-    // Initialize cron job for exchange rate caching
-    const cronJob = require('./cronJob'); // Adjust path if cronJob.js is in a different directory
-    console.log('Cron job for exchange rate caching initialized');
+    // // Initialize cron job for exchange rate caching
+    // const cronJob = require('./cronJob'); // Adjust path if cronJob.js is in a different directory
+    // console.log('Cron job for exchange rate caching initialized');
 
     // // Fetch and update exchange rates (optional, can be triggered separately)
     // try {
