@@ -1,12 +1,10 @@
 const UOMModel = require('../models/uomModel');
 
 class UOMController {
-  // Get all UOMs with pagination
   static async getAllUOMs(req, res) {
     try {
       const { pageNumber, pageSize, fromDate, toDate } = req.query;
 
-      // Validate pagination parameters
       if (pageNumber && isNaN(parseInt(pageNumber))) {
         return res.status(400).json({
           success: false,
@@ -24,7 +22,6 @@ class UOMController {
         });
       }
 
-      // Validate date parameters
       if (fromDate && !/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
         return res.status(400).json({
           success: false,
@@ -61,7 +58,11 @@ class UOMController {
         }
       });
     } catch (err) {
-      console.error('getAllUOMs error:', err);
+      console.error('getAllUOMs error:', {
+        message: err.message,
+        stack: err.stack,
+        query: req.query
+      });
       return res.status(500).json({
         success: false,
         message: `Server error: ${err.message}`,
@@ -71,12 +72,10 @@ class UOMController {
     }
   }
 
-  // Create a new UOM
   static async createUOM(req, res) {
     try {
       const { uom, createdById } = req.body;
 
-      // Basic validation
       if (!uom || !createdById) {
         return res.status(400).json({
           success: false,
@@ -98,7 +97,11 @@ class UOMController {
         uomId: result.uomId
       });
     } catch (err) {
-      console.error('createUOM error:', err);
+      console.error('createUOM error:', {
+        message: err.message,
+        stack: err.stack,
+        body: req.body
+      });
       return res.status(500).json({
         success: false,
         message: `Server error: ${err.message}`,
@@ -108,7 +111,6 @@ class UOMController {
     }
   }
 
-  // Get a single UOM by ID
   static async getUOMById(req, res) {
     try {
       const { id } = req.params;
@@ -140,7 +142,11 @@ class UOMController {
         uomId: id
       });
     } catch (err) {
-      console.error('getUOMById error:', err);
+      console.error('getUOMById error:', {
+        message: err.message,
+        stack: err.stack,
+        params: req.params
+      });
       return res.status(500).json({
         success: false,
         message: `Server error: ${err.message}`,
@@ -150,7 +156,6 @@ class UOMController {
     }
   }
 
-  // Update a UOM
   static async updateUOM(req, res) {
     try {
       const { id } = req.params;
@@ -186,7 +191,9 @@ class UOMController {
         uomId: id
       });
     } catch (err) {
-      console.error('updateUOM error:', err);
+      console.error('updateUOM error:', {
+       params:{ id: req.params.id, body: req.body }
+      });
       return res.status(500).json({
         success: false,
         message: `Server error: ${err.message}`,
@@ -196,7 +203,6 @@ class UOMController {
     }
   }
 
-  // Delete a UOM
   static async deleteUOM(req, res) {
     try {
       const { id } = req.params;
@@ -229,7 +235,11 @@ class UOMController {
         uomId: id
       });
     } catch (err) {
-      console.error('deleteUOM error:', err);
+      console.error('deleteUOM error:', {
+        message: err.message,
+        stack: err.stack,
+        params: { id: req.params.id, createdById: req.body.createdById }
+      });
       return res.status(500).json({
         success: false,
         message: `Server error: ${err.message}`,
