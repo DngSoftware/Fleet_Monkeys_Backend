@@ -70,7 +70,7 @@ const dashboardCountsRoutes = require('./routes/dashboardCountsRoutes');
 // const ExchangeRateService = require('./services/exchangeRateService');
 const customerAddressRoutes = require('./routes/customerAddressRoutes');
 const supplierAddressRoutes = require('./routes/supplierAddressRoutes');
-const ShippingParcelRoutes = require('./routes/ShippingParcelRoutes');
+const ShippingParcelRoutes = require('./routes/shippingParcelRoutes');
 const repackagedPalletOrTobaccoRoutes = require('./routes/repackagedPalletOrTobaccoRoutes');
 
 
