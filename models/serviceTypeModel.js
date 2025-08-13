@@ -2,22 +2,23 @@ const poolPromise = require('../config/db.config');
 
 class ServiceTypeModel {
   // Get paginated Service Types
-  static async getAllServiceTypes({ pageNumber = 1, pageSize = 10, fromDate = null, toDate = null }) {
+ static async getAllServiceTypes({ pageNumber = 1, pageSize = 10, fromDate = null, toDate = null }) {
+    let pool;
     try {
-      const pool = await poolPromise;
+      pool = await poolPromise;
 
       // Validate parameters
       if (pageNumber < 1) pageNumber = 1;
-      if (pageSize < 1 || pageSize > 100) pageSize = 10; // Cap pageSize at 100
-      let formattedFromDate = null, formattedToDate = null;
+      if (pageSize < 1 || pageSize > 100) pageSize = 10;
 
+      let formattedFromDate = null, formattedToDate = null;
       if (fromDate) {
         formattedFromDate = new Date(fromDate);
-        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate');
+        if (isNaN(formattedFromDate)) throw new Error('Invalid fromDate format');
       }
       if (toDate) {
         formattedToDate = new Date(toDate);
-        if (isNaN(formattedToDate)) throw new Error('Invalid toDate');
+        if (isNaN(formattedToDate)) throw new Error('Invalid toDate format');
       }
       if (formattedFromDate && formattedToDate && formattedFromDate > formattedToDate) {
         throw new Error('fromDate cannot be later than toDate');
@@ -32,7 +33,7 @@ class ServiceTypeModel {
 
       console.log('getAllServiceTypes params:', JSON.stringify(queryParams, null, 2));
 
-      // Call SP_GetAllServiceType
+      // Execute stored procedure
       const [results] = await pool.query(
         'CALL SP_GetAllServiceType(?, ?, ?, ?, @p_Result, @p_Message)',
         queryParams
@@ -45,6 +46,7 @@ class ServiceTypeModel {
 
       console.log('getAllServiceTypes output:', JSON.stringify(output, null, 2));
 
+      // Check for valid output
       if (!output || !output[0] || typeof output[0].p_Result === 'undefined') {
         throw new Error('Output parameters missing from SP_GetAllServiceType');
       }
@@ -53,7 +55,6 @@ class ServiceTypeModel {
         throw new Error(output[0].p_Message || 'Failed to retrieve service types');
       }
 
-      // Since SP_GetAllServiceType does not return totalRecords, use the length of the data
       const totalRecords = Array.isArray(results[0]) ? results[0].length : 0;
 
       return {
@@ -64,11 +65,28 @@ class ServiceTypeModel {
         totalPages: Math.ceil(totalRecords / pageSize)
       };
     } catch (err) {
-      console.error('getAllServiceTypes error:', err.stack);
+      // Enhanced error logging
+      const errorDetails = {
+        message: err.message,
+        stack: err.stack,
+        queryParams: JSON.stringify({ pageNumber, pageSize, fromDate, toDate }, null, 2),
+        sqlError: err.sql ? {
+          sqlMessage: err.sqlMessage,
+          sqlState: err.sqlState,
+          errno: err.errno,
+          code: err.code
+        } : null,
+        timestamp: new Date().toISOString(),
+        poolStats: pool ? {
+          totalConnections: pool.pool._allConnections.length,
+          activeConnections: pool.pool._allConnections.length - pool.pool._freeConnections.length,
+          freeConnections: pool.pool._freeConnections.length
+        } : null
+      };
+      console.error('getAllServiceTypes error:', JSON.stringify(errorDetails, null, 2));
       throw new Error(`Database error: ${err.message}`);
     }
   }
-
   // Create a new Service Type
   static async createServiceType(data) {
     try {
