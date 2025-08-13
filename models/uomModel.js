@@ -1,14 +1,17 @@
 const poolPromise = require('../config/db.config');
+const retry = require('async-retry');
 
 class UOMModel {
   // Get paginated UOMs
   static async getAllUOMs({ pageNumber = 1, pageSize = 10, fromDate = null, toDate = null }) {
+    let connection;
     try {
       const pool = await poolPromise;
+      connection = await pool.getConnection();
 
       // Validate parameters
       if (pageNumber < 1) pageNumber = 1;
-      if (pageSize < 1 || pageSize > 100) pageSize = 10; // Cap pageSize at 100
+      if (pageSize < 1 || pageSize > 100) pageSize = 10;
       let formattedFromDate = null, formattedToDate = null;
 
       if (fromDate) {
@@ -32,16 +35,29 @@ class UOMModel {
 
       console.log('getAllUOMs params:', JSON.stringify(queryParams, null, 2));
 
-      // Call the stored procedure
-      const [results] = await pool.query(
-        'CALL SP_GetAllUOMs(?, ?, ?, ?, @p_TotalRecords, @p_Result, @p_Message)',
-        queryParams
+      // Retry the stored procedure call
+      const [results] = await retry(
+        async () => {
+          return await connection.query(
+            'CALL SP_GetAllUOMs(?, ?, ?, ?, @p_TotalRecords, @p_Result, @p_Message)',
+            queryParams
+          );
+        },
+        {
+          retries: 3,
+          factor: 2,
+          minTimeout: 1000,
+          maxTimeout: 5000,
+          onRetry: (err, attempt) => {
+            console.log(`getAllUOMs retry attempt ${attempt}: ${err.message}`);
+          }
+        }
       );
 
       console.log('getAllUOMs results:', JSON.stringify(results, null, 2));
 
       // Fetch output parameters
-      const [output] = await pool.query(
+      const [output] = await connection.query(
         'SELECT @p_TotalRecords AS p_TotalRecords, @p_Result AS p_Result, @p_Message AS p_Message'
       );
 
@@ -51,8 +67,16 @@ class UOMModel {
         throw new Error(`Output parameters missing from SP_GetAllUOMs: ${JSON.stringify(output)}`);
       }
 
+      // Handle non-zero p_Result more flexibly
       if (output[0].p_Result !== 0) {
-        throw new Error(output[0].p_Message || 'Failed to retrieve UOMs');
+        if (
+          output[0].p_Message &&
+          (output[0].p_Message.includes('successfully') || output[0].p_Message.includes('Success'))
+        ) {
+          console.warn(`Non-zero p_Result (${output[0].p_Result}) with success message: ${output[0].p_Message}`);
+        } else {
+          throw new Error(output[0].p_Message || 'Failed to retrieve UOMs');
+        }
       }
 
       return {
@@ -63,19 +87,27 @@ class UOMModel {
         totalPages: Math.ceil((output[0].p_TotalRecords || 0) / pageSize)
       };
     } catch (err) {
-      console.error('getAllUOMs error:', err.stack);
+      console.error('getAllUOMs error:', {
+        message: err.message,
+        stack: err.stack,
+        params: { pageNumber, pageSize, fromDate, toDate }
+      });
       throw new Error(`Database error: ${err.message}`);
+    } finally {
+      if (connection) connection.release();
     }
   }
 
   // Create a new UOM
   static async createUOM(data) {
+    let connection;
     try {
       const pool = await poolPromise;
+      connection = await pool.getConnection();
 
       const queryParams = [
         'INSERT',
-        null, // p_UOMID
+        null,
         data.uom,
         data.createdById,
         data.DeletedByID
@@ -83,14 +115,24 @@ class UOMModel {
 
       console.log('createUOM params:', JSON.stringify(queryParams, null, 2));
 
-      const [results] = await pool.query(
-        'CALL SP_ManageUOM(?, ?, ?, ?, ?, @p_Result, @p_Message)',
-        queryParams
+      const [results] = await retry(
+        async () => {
+          return await connection.query(
+            'CALL SP_ManageUOM(?, ?, ?, ?, ?, @p_Result, @p_Message)',
+            queryParams
+          );
+        },
+        {
+          retries: 3,
+          factor: 2,
+          minTimeout: 1000,
+          maxTimeout: 5000
+        }
       );
 
       console.log('createUOM results:', JSON.stringify(results, null, 2));
 
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
+      const [output] = await connection.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
 
       console.log('createUOM output:', JSON.stringify(output, null, 2));
 
@@ -102,7 +144,6 @@ class UOMModel {
         throw new Error(output[0].p_Message || 'Failed to create UOM');
       }
 
-      // Extract UOMID from message
       const uomIdMatch = output[0].p_Message.match(/ID: (\d+)/);
       const uomId = uomIdMatch ? parseInt(uomIdMatch[1]) : null;
 
@@ -111,34 +152,52 @@ class UOMModel {
         message: output[0].p_Message
       };
     } catch (err) {
-      console.error('createUOM error:', err.stack);
+      console.error('createUOM error:', {
+        message: err.message,
+        stack: err.stack,
+        params: data
+      });
       throw new Error(`Database error: ${err.message}`);
+    } finally {
+      if (connection) connection.release();
     }
   }
 
   // Get a single UOM by ID
   static async getUOMById(id) {
+    let connection;
     try {
       const pool = await poolPromise;
+      connection = await pool.getConnection();
 
       const queryParams = [
         'SELECT',
         id,
-        null, // p_UOM
-        null, // p_CreatedByID
+        null,
+        null,
         null
       ];
 
       console.log('getUOMById params:', JSON.stringify(queryParams, null, 2));
 
-      const [results] = await pool.query(
-        'CALL SP_ManageUOM(?, ?, ?, ?, ?, @p_Result, @p_Message)',
-        queryParams
+      const [results] = await retry(
+        async () => {
+          return await connection.query(
+            'CALL SP_ManageUOM(?, ?, ?, ?, ?, @p_Result, @p_Message)',
+            queryParams
+          );
+        },
+        {
+          retries: 3,
+          factor: 2,
+          minTimeout: 1000,
+          maxTimeout: 5000
+        }
       );
 
       console.log('getUOMById results:', JSON.stringify(results, null, 2));
 
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
+      const [output] = await connection.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
 
       console.log('getUOMById output:', JSON.stringify(output, null, 2));
 
@@ -152,15 +211,23 @@ class UOMModel {
 
       return results[0][0] || null;
     } catch (err) {
-      console.error('getUOMById error:', err.stack);
+      console.error('getUOMById error:', {
+        message: err.message,
+        stack: err.stack,
+        params: { id }
+      });
       throw new Error(`Database error: ${err.message}`);
+    } finally {
+      if (connection) connection.release();
     }
   }
 
   // Update a UOM
   static async updateUOM(id, data) {
+    let connection;
     try {
       const pool = await poolPromise;
+      connection = await pool.getConnection();
 
       const queryParams = [
         'UPDATE',
@@ -172,14 +239,24 @@ class UOMModel {
 
       console.log('updateUOM params:', JSON.stringify(queryParams, null, 2));
 
-      const [results] = await pool.query(
-        'CALL SP_ManageUOM(?, ?, ?, ?, ?, @p_Result, @p_Message)',
-        queryParams
+      const [results] = await retry(
+        async () => {
+          return await connection.query(
+            'CALL SP_ManageUOM(?, ?, ?, ?, ?, @p_Result, @p_Message)',
+            queryParams
+          );
+        },
+        {
+          retries: 3,
+          factor: 2,
+          minTimeout: 1000,
+          maxTimeout: 5000
+        }
       );
 
       console.log('updateUOM results:', JSON.stringify(results, null, 2));
 
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
+      const [output] = await connection.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
 
       console.log('updateUOM output:', JSON.stringify(output, null, 2));
 
@@ -195,34 +272,52 @@ class UOMModel {
         message: output[0].p_Message
       };
     } catch (err) {
-      console.error('updateUOM error:', err.stack);
+      console.error('updateUOM error:', {
+        message: err.message,
+        stack: err.stack,
+        params: { id, data }
+      });
       throw new Error(`Database error: ${err.message}`);
+    } finally {
+      if (connection) connection.release();
     }
   }
 
   // Delete a UOM
   static async deleteUOM(id, createdById) {
+    let connection;
     try {
       const pool = await poolPromise;
+      connection = await pool.getConnection();
 
       const queryParams = [
         'DELETE',
         id,
-        null, // p_UOM
+        null,
         createdById,
         null
       ];
 
       console.log('deleteUOM params:', JSON.stringify(queryParams, null, 2));
 
-      const [results] = await pool.query(
-        'CALL SP_ManageUOM(?, ?, ?, ?, ?, @p_Result, @p_Message)',
-        queryParams
+      const [results] = await retry(
+        async () => {
+          return await connection.query(
+            'CALL SP_ManageUOM(?, ?, ?, ?, ?, @p_Result, @p_Message)',
+            queryParams
+          );
+        },
+        {
+          retries: 3,
+          factor: 2,
+          minTimeout: 1000,
+          maxTimeout: 5000
+        }
       );
 
       console.log('deleteUOM results:', JSON.stringify(results, null, 2));
 
-      const [output] = await pool.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
+      const [output] = await connection.query('SELECT @p_Result AS p_Result, @p_Message AS p_Message');
 
       console.log('deleteUOM output:', JSON.stringify(output, null, 2));
 
@@ -238,8 +333,14 @@ class UOMModel {
         message: output[0].p_Message
       };
     } catch (err) {
-      console.error('deleteUOM error:', err.stack);
+      console.error('deleteUOM error:', {
+        message: err.message,
+        stack: err.stack,
+        params: { id, createdById }
+      });
       throw new Error(`Database error: ${err.message}`);
+    } finally {
+      if (connection) connection.release();
     }
   }
 }

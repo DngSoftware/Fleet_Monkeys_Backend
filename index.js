@@ -334,9 +334,9 @@
 
 
 
-
 const express = require('express');
 const cors = require('cors');
+const retry = require('async-retry');
 const poolPromise = require('./config/db.config');
 const salesRFQRoutes = require('./routes/salesRFQRoutes');
 const customerRoutes = require('./routes/customerRoutes');
@@ -416,10 +416,8 @@ const loadRoutes = require('./routes/loadRoutes');
 const loadTrailerRoutes = require('./routes/loadTrailerRoutes');
 const trailerRoutes = require('./routes/trailerRoutes');
 
-
 const app = express();
 
-// Middleware
 app.use(express.json());
 app.use(cors({
   origin: [
@@ -432,7 +430,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Accept', 'Authorization']
 }));
 
-// WebSocket setup
 const http = require('http');
 const WebSocket = require('ws');
 const SalesRFQModel = require('./models/salesRFQModel');
@@ -476,7 +473,6 @@ async function broadcastApprovalUpdate(salesRFQId) {
 
 SalesRFQModel.onApprovalUpdate = broadcastApprovalUpdate;
 
-// Health check endpoint
 app.get('/health', async (req, res) => {
   try {
     const pool = await poolPromise;
@@ -488,12 +484,8 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// Initialize server with retry logic
-const retry = require('async-retry');
-
 async function startServer() {
   try {
-    // Wait for database connection with retries
     const pool = await retry(
       async () => {
         const pool = await poolPromise;
@@ -511,7 +503,6 @@ async function startServer() {
       }
     );
 
-    // Mount routes
     const routes = [
       ['/api/customers', customerRoutes],
       ['/api/companies', companyRoutes],
@@ -600,7 +591,6 @@ async function startServer() {
       console.log(`Mounted route: ${path}`);
     });
 
-    // Error handling middleware
     app.use((err, req, res, next) => {
       console.error('Application Error:', {
         message: err.message,
@@ -615,12 +605,11 @@ async function startServer() {
       });
     });
 
-    const PORT = 7000; // Hardcoded since no .env
+    const PORT = 7000;
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
     });
 
-    // Graceful shutdown
     const shutdown = async (signal) => {
       console.log(`Received ${signal}. Shutting down...`);
       try {
@@ -661,7 +650,6 @@ async function startServer() {
   }
 }
 
-// Start the server
 startServer()
   .then(() => console.log('Server initialization complete'))
   .catch(err => {
