@@ -66,7 +66,7 @@ const inquiryTrackingRoutes = require('./routes/inquiryTrackingRoutes');
 const commentsRoutes = require('./routes/commentsRoutes');
 const tableCountsRoutes = require('./routes/tableCountsRoutes');
 const dashboardCountsRoutes = require('./routes/dashboardCountsRoutes');
-const exchangeRateRoutes = require('./routes/exchangeRateRoutes');
+// const exchangeRateRoutes = require('./routes/exchangeRateRoutes');
 const customerAddressRoutes = require('./routes/customerAddressRoutes');
 const supplierAddressRoutes = require('./routes/supplierAddressRoutes');
 const shippingParcelRoutes = require('./routes/shippingParcelRoutes');
@@ -231,7 +231,7 @@ async function startServer() {
       ['/api/comments', commentsRoutes],
       ['/api/tableCounts', tableCountsRoutes],
       ['/api/dashboardCounts', dashboardCountsRoutes],
-      ['/api/exchange-rates', exchangeRateRoutes],
+      // ['/api/exchange-rates', exchangeRateRoutes],
       ['/api/customerAddress', customerAddressRoutes],
       ['/api/supplierAddress', supplierAddressRoutes],
       ['/api/shippingParcel', shippingParcelRoutes],
