@@ -144,6 +144,7 @@ SalesRFQModel.onApprovalUpdate = broadcastApprovalUpdate;
 app.get('/health', (req, res) => {
   res.status(200).json({ success: true, timestamp: new Date().toISOString() });
 });
+ 
 
 // Initialize server
 async function startServer() {
