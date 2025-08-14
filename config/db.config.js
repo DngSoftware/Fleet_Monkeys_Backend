@@ -68,7 +68,7 @@ const dbConfig = {
   host: '13.202.8.138', // Replace with the private IP of the database EC2 instance (e.g., 172.31.x.x) or Elastic IP
   user: 'fleetmonkeys',
   password: 'Fleet_Monkey@Dnginc#21',
-  database: 'fleet_monkey_test',
+  database: 'fleet_monkey',
   port: 3306,
   connectionLimit: 20, // Reduced for t3.small to avoid overloading
   queueLimit: 0,
