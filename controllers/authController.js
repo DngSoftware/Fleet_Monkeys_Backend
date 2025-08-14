@@ -44,7 +44,7 @@ class AuthController {
       const token = jwt.sign(
         { personId, role: adminRole.RoleID },
         JWT_SECRET,
-        { expiresIn: '24h' }
+        { expiresIn: '2h' }
       );
 
       console.log('Sending welcome email with:', { email: EmailID, loginID: LoginID, password: Password });
@@ -104,7 +104,7 @@ class AuthController {
       const token = jwt.sign(
         { personId, role: adminRole.RoleID },
         JWT_SECRET,
-        { expiresIn: '24h' }
+        { expiresIn: '2h' }
       );
 
       console.log('Sending welcome email with:', { email: EmailID, loginID: LoginID, password: Password });
@@ -203,7 +203,7 @@ class AuthController {
       const token = jwt.sign(
         { personId: user.PersonID, role: user.RoleID },
         JWT_SECRET,
-        { expiresIn: '24h' }
+        { expiresIn: '2h' }
       );
 
       return res.status(200).json({
