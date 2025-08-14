@@ -1,5 +1,5 @@
 const poolPromise = require('../config/db.config');
-const exchange = require('node-currency-exchange-rates');
+// const exchange = require('node-currency-exchange-rates');
 
 class SalesQuotationModel {
    // Get all Sales Quotations (unchanged for brevity)
